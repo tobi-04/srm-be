@@ -2,6 +2,12 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { BaseEntity } from '../../../common/entities/base.entity';
 
+export enum UserRole {
+  ADMIN = 'admin',
+  SALE = 'sale',
+  USER = 'user',
+}
+
 @Schema({ collection: 'users', timestamps: false })
 export class User extends BaseEntity {
   @Prop({ required: true, unique: true })
@@ -13,8 +19,8 @@ export class User extends BaseEntity {
   @Prop({ required: true })
   password: string;
 
-  @Prop({ default: 'user' })
-  role: string;
+  @Prop({ type: String, enum: UserRole, default: UserRole.USER })
+  role: UserRole;
 
   @Prop({ default: true })
   is_active: boolean;

@@ -414,3 +414,27 @@ await repository.model.find({ is_deleted: true });
 // Restore deleted
 await repository.restore(id);
 ```
+
+## API Documentation
+
+Interactive API documentation is available via Swagger UI:
+
+**URL**: http://localhost:3000/api
+
+Features:
+- Interactive endpoint testing
+- Complete request/response schemas
+- Example values and descriptions
+- JWT authentication support
+- Organized by modules (users, audit-logs)
+
+For detailed information, see [SWAGGER.md](SWAGGER.md).
+
+## Additional Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Quick start guide for developers
+- **[EXAMPLES.md](EXAMPLES.md)** - Usage examples and patterns
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Visual architecture diagrams
+- **[AUDIT_LOG.md](AUDIT_LOG.md)** - Audit log system documentation
+- **[SWAGGER.md](SWAGGER.md)** - API documentation guide
+

@@ -55,6 +55,19 @@ export class AuditLogInterceptor implements NestInterceptor {
     const ip_address = this.getClientIp(request);
     const user_agent = request.headers['user-agent'];
     const userId = request.user?.id || request.user?._id;
+    const timestamp = new Date();
+
+    // Log to terminal BEFORE processing the request
+    this.logToTerminal({
+      timestamp,
+      method,
+      path: request.url,
+      action,
+      entity,
+      userId,
+      ip_address,
+      user_agent,
+    });
 
     return next.handle().pipe(
       tap(async (response) => {
@@ -106,5 +119,65 @@ export class AuditLogInterceptor implements NestInterceptor {
       request.socket?.remoteAddress ||
       'unknown'
     );
+  }
+
+  private logToTerminal(data: {
+    timestamp: Date;
+    method: string;
+    path: string;
+    action: string;
+    entity: string;
+    userId?: any;
+    ip_address: string;
+    user_agent: string;
+  }): void {
+    const { timestamp, method, path, action, entity, userId, ip_address, user_agent } = data;
+
+    // Format timestamp
+    const formattedTime = timestamp.toISOString();
+
+    // Extract device info from user agent
+    const deviceInfo = this.parseUserAgent(user_agent);
+
+    // Format user info
+    const userInfo = userId ? `User: ${userId}` : 'User: Guest/Unauthenticated';
+
+    // Build log message with color codes for better readability
+    const logMessage = [
+      '\x1b[36m========================================\x1b[0m',
+      `\x1b[33m⏰ Time:\x1b[0m ${formattedTime}`,
+      `\x1b[32m👤 ${userInfo}\x1b[0m`,
+      `\x1b[35m🌐 IP Address:\x1b[0m ${ip_address}`,
+      `\x1b[34m📱 Device:\x1b[0m ${deviceInfo}`,
+      `\x1b[36m📍 Endpoint:\x1b[0m ${method} ${path}`,
+      `\x1b[31m🎯 Action:\x1b[0m ${action} on ${entity}`,
+      '\x1b[36m========================================\x1b[0m',
+    ].join('\n');
+
+    console.log('\n' + logMessage + '\n');
+  }
+
+  private parseUserAgent(userAgent: string): string {
+    if (!userAgent) return 'Unknown Device';
+
+    // Simple user agent parsing for common patterns
+    let browser = 'Unknown Browser';
+    let os = 'Unknown OS';
+
+    // Detect browser
+    if (userAgent.includes('Chrome')) browser = 'Chrome';
+    else if (userAgent.includes('Firefox')) browser = 'Firefox';
+    else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) browser = 'Safari';
+    else if (userAgent.includes('Edge')) browser = 'Edge';
+    else if (userAgent.includes('Opera')) browser = 'Opera';
+
+    // Detect OS
+    if (userAgent.includes('Windows')) os = 'Windows';
+    else if (userAgent.includes('Mac OS')) os = 'macOS';
+    else if (userAgent.includes('Linux')) os = 'Linux';
+    else if (userAgent.includes('Android')) os = 'Android';
+    else if (userAgent.includes('iOS') || userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+
+    return `${browser} on ${os}`;
   }
 }
