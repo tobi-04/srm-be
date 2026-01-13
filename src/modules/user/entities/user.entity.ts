@@ -30,6 +30,5 @@ export type UserDocument = HydratedDocument<User>;
 export const UserSchema = SchemaFactory.createForClass(User);
 
 // Add indexes
-UserSchema.index({ email: 1 });
 UserSchema.index({ name: 'text' });
 UserSchema.index({ is_deleted: 1, is_active: 1 });

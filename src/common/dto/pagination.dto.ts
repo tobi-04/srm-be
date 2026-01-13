@@ -1,4 +1,4 @@
-import { IsOptional, IsInt, Min, Max, IsString } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PaginationDto {
@@ -26,4 +26,13 @@ export class PaginationDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsString()
+  role?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  is_active?: boolean;
 }

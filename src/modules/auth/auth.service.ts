@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException, NotFoundExcepti
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { UserRepository } from '../user/user.repository';
 import { User, UserDocument } from '../user/entities/user.entity';
 import { UserDeviceLogin, UserDeviceLoginDocument } from './entities/user-device-login.entity';
@@ -49,43 +49,70 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const user = await this.userRepository.findOne({ email: loginDto.email });
+    try {
+      const user = await this.userRepository.findOne({ email: loginDto.email });
+
+      if (!user || !user.is_active || user.is_deleted) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      // Use provided device_id or generate a default one
+      const deviceId = loginDto.device_id || 'default-device';
+      const tokens = await this.generateTokens(user, deviceId);
+
+      // Handle device login if device info is provided
+      if (loginDto.device_id) {
+        await this.updateDeviceLogin(
+          user._id.toString(),
+          loginDto.device_id,
+          loginDto.device_name || 'Unknown Device',
+          loginDto.device_type || 'web',
+          loginDto.device_token || '',
+          tokens.refreshToken,
+        );
+      }
+
+      return {
+        message: 'Login successful',
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+        ...tokens,
+      };
+    } catch (error) {
+        console.log(error);
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new BadRequestException(error.message || 'Login failed');
+    }
+  }
+
+  async getMe(userId: string) {
+    const user = await this.userRepository.findById(userId);
 
     if (!user || !user.is_active || user.is_deleted) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    // Use provided device_id or generate a default one
-    const deviceId = loginDto.device_id || 'default-device';
-    const tokens = await this.generateTokens(user, deviceId);
-
-    // Handle device login if device info is provided
-    if (loginDto.device_id) {
-      await this.updateDeviceLogin(
-        user._id.toString(),
-        loginDto.device_id,
-        loginDto.device_name || 'Unknown Device',
-        loginDto.device_type || 'web',
-        loginDto.device_token || '',
-        tokens.refreshToken,
-      );
+      throw new UnauthorizedException('User not found or inactive');
     }
 
     return {
-      message: 'Login successful',
       user: {
         id: user._id,
         email: user.email,
         name: user.name,
         role: user.role,
+        is_active: user.is_active,
+        created_at: user.created_at,
       },
-      ...tokens,
     };
   }
 

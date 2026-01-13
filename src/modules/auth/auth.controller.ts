@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request, HttpCode, HttpStatus, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto, RefreshTokenDto } from './dto/auth.dto';
@@ -25,6 +25,16 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user information' })
+  @ApiResponse({ status: 200, description: 'User information retrieved' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getMe(@Request() req) {
+    return this.authService.getMe(req.user.userId);
   }
 
   @Post('refresh')

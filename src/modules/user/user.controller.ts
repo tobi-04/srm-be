@@ -46,12 +46,15 @@ export class UserController {
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   @ApiQuery({ name: 'sort', required: false, type: String, example: 'created_at' })
   @ApiQuery({ name: 'order', required: false, enum: ['asc', 'desc'], example: 'desc' })
-  @ApiQuery({ name: 'email', required: false, type: String })
-  @ApiQuery({ name: 'name', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'role', required: false, type: String })
   @ApiQuery({ name: 'useCache', required: false, type: Boolean, example: true })
   @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
-  async findAll(@Query() paginationDto: PaginationDto, @Query() searchDto: SearchUserDto) {
+  async findAll(@Query() paginationDto: PaginationDto) {
+    const searchDto: SearchUserDto = {
+      role: (paginationDto as any).role,
+      is_active: (paginationDto as any).is_active,
+    };
     return this.userService.findAll(paginationDto, searchDto);
   }
 
