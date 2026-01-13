@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { UserRepository } from './user.repository';
 import { CreateUserDto, UpdateUserDto, SearchUserDto } from './dto/user.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UserService {
