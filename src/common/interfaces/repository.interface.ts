@@ -27,4 +27,5 @@ export interface PaginateOptions extends FindOptions {
   order?: 'asc' | 'desc';
   search?: string;
   searchFields?: string[];
+  includeDeleted?: boolean; // Include soft-deleted items
 }

@@ -7,6 +7,7 @@ import { RedisCacheModule } from './common/cache/redis-cache.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
+import { CourseModule } from './modules/course/course.module';
 import { ApiLoggerMiddleware } from './common/middleware/api-logger.middleware';
 
 @Module({
@@ -19,6 +20,7 @@ import { ApiLoggerMiddleware } from './common/middleware/api-logger.middleware';
     UserModule,
     AuthModule,
     AuditLogModule,
+    CourseModule,
   ],
   controllers: [AppController],
   providers: [AppService],

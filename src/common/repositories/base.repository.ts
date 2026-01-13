@@ -36,6 +36,7 @@ export abstract class BaseRepository<T extends BaseEntity> {
       cacheTTL = 300,
       select,
       populate,
+      includeDeleted = false, // Default: exclude deleted items
     } = options;
 
     const cacheKey = this.cacheService.generateKey(
@@ -46,6 +47,7 @@ export abstract class BaseRepository<T extends BaseEntity> {
       sort,
       order,
       search || '',
+      includeDeleted.toString(),
     );
 
     if (useCache) {
@@ -55,8 +57,12 @@ export abstract class BaseRepository<T extends BaseEntity> {
 
     const queryFilter: FilterQuery<T> = {
       ...filter,
-      is_deleted: false,
     };
+
+    // Only filter out deleted items if includeDeleted is false
+    if (!includeDeleted) {
+      queryFilter.is_deleted = false;
+    }
 
     if (search && searchFields.length > 0) {
       queryFilter.$or = searchFields.map(field => ({
