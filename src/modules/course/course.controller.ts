@@ -88,17 +88,6 @@ export class CourseController {
     return this.courseService.findAll(paginationDto, searchDto, isAdmin);
   }
 
-  @Get(':id')
-  @UseGuards(OptionalJwtGuard)
-  @ApiOperation({ summary: 'Get a course by ID' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Course retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Course not found' })
-  async findOne(@Param('id') id: string, @Request() req: any) {
-    const isAdmin = req.user?.role === 'admin';
-    return this.courseService.findOne(id, isAdmin);
-  }
-
   @Get('slug/:slug')
   @UseGuards(OptionalJwtGuard)
   @ApiOperation({ summary: 'Get a course by slug' })
@@ -108,6 +97,17 @@ export class CourseController {
   async findBySlug(@Param('slug') slug: string, @Request() req: any) {
     const isAdmin = req.user?.role === 'admin';
     return this.courseService.findBySlug(slug, isAdmin);
+  }
+
+  @Get(':id')
+  @UseGuards(OptionalJwtGuard)
+  @ApiOperation({ summary: 'Get a course by ID' })
+  @ApiParam({ name: 'id', type: String })
+  @ApiResponse({ status: 200, description: 'Course retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    const isAdmin = req.user?.role === 'admin';
+    return this.courseService.findOne(id, isAdmin);
   }
 
   @Put(':id')

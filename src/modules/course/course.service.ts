@@ -106,7 +106,12 @@ export class CourseService {
   }
 
   async findBySlug(slug: string, isAdmin: boolean = false) {
+    console.log('🔍 Finding course by slug:', slug);
+    console.log('🔍 isAdmin:', isAdmin);
+
     const course = await this.courseRepository.findBySlug(slug);
+
+    console.log('🔍 Course found:', course);
 
     if (!course) {
       throw new NotFoundException('Course not found');
@@ -114,6 +119,7 @@ export class CourseService {
 
     // If not admin and course is draft, deny access
     if (!isAdmin && course.status === 'draft') {
+      console.log('⛔ Course is draft and user is not admin');
       throw new NotFoundException('Course not found');
     }
 
@@ -126,10 +132,19 @@ export class CourseService {
       throw new BadRequestException('Price must be greater than or equal to 0');
     }
 
-    // If title is being updated, regenerate slug
+    // Get existing course to compare title
+    const existingCourse = await this.courseRepository.findById(id);
+    if (!existingCourse) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // If title is being updated AND is different from current title, regenerate slug
     const updateData: any = { ...updateCourseDto };
-    if (updateCourseDto.title) {
+    if (updateCourseDto.title && updateCourseDto.title !== existingCourse.title) {
       updateData.slug = this.generateSlug(updateCourseDto.title);
+      console.log('📝 Title changed - Regenerating slug:', updateData.slug);
+    } else {
+      console.log('📝 Title unchanged - Keeping existing slug:', existingCourse.slug);
     }
 
     const course = await this.courseRepository.updateById(id, updateData);
