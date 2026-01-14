@@ -55,4 +55,8 @@ export class PaginationDto {
   @IsBoolean()
   @Type(() => Boolean)
   is_active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  course_id?: string;
 }

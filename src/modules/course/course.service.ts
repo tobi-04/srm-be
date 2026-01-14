@@ -1,28 +1,48 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
-import { CourseRepository } from './course.repository';
-import { CreateCourseDto, UpdateCourseDto, SearchCourseDto } from './dto/course.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from "@nestjs/common";
+import { CourseRepository } from "./course.repository";
+import {
+  CreateCourseDto,
+  UpdateCourseDto,
+  SearchCourseDto,
+} from "./dto/course.dto";
+import { PaginationDto } from "../../common/dto/pagination.dto";
+import { LessonService } from "../lesson/lesson.service";
 
 @Injectable()
 export class CourseService {
-  constructor(private readonly courseRepository: CourseRepository) {}
+  constructor(
+    private readonly courseRepository: CourseRepository,
+    @Inject(forwardRef(() => LessonService))
+    private readonly lessonService: LessonService
+  ) {}
 
   /**
    * Generate unique slug from title
    */
   private generateSlug(title: string): string {
-    return title
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/--+/g, '-')
-      .trim() + '-' + Date.now();
+    return (
+      title
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/--+/g, "-")
+        .trim() +
+      "-" +
+      Date.now()
+    );
   }
 
   async create(createCourseDto: CreateCourseDto) {
     // Check if price is valid
     if (createCourseDto.price < 0) {
-      throw new BadRequestException('Price must be greater than or equal to 0');
+      throw new BadRequestException("Price must be greater than or equal to 0");
     }
 
     // Generate unique slug
@@ -37,7 +57,7 @@ export class CourseService {
       return course;
     } catch (error) {
       // Rollback handled by MongoDB transaction if configured
-      throw new BadRequestException('Failed to create course');
+      throw new BadRequestException("Failed to create course");
     }
   }
 
@@ -47,11 +67,17 @@ export class CourseService {
       slug: this.generateSlug(dto.title),
     }));
 
-    const courses = await this.courseRepository.createMany(coursesWithSlugs as any);
+    const courses = await this.courseRepository.createMany(
+      coursesWithSlugs as any
+    );
     return courses;
   }
 
-  async findAll(paginationDto: PaginationDto, searchDto: SearchCourseDto, isAdmin: boolean = false) {
+  async findAll(
+    paginationDto: PaginationDto,
+    searchDto: SearchCourseDto,
+    isAdmin: boolean = false
+  ) {
     const { page, limit, sort, order, search } = paginationDto;
     const { status, category, minPrice, maxPrice } = searchDto;
 
@@ -59,7 +85,7 @@ export class CourseService {
 
     // If not admin, only show published courses
     if (!isAdmin) {
-      filter.status = 'published';
+      filter.status = "published";
     } else if (status) {
       filter.status = status;
     }
@@ -75,10 +101,10 @@ export class CourseService {
     const result = await this.courseRepository.paginate(filter, {
       page,
       limit,
-      sort: sort || 'created_at',
+      sort: sort || "created_at",
       order,
       search,
-      searchFields: ['title', 'description'],
+      searchFields: ["title", "description"],
       useCache: false, // Disable cache for debugging
       cacheTTL: 0,
       includeDeleted: isAdmin, // Admin can see deleted courses
@@ -94,63 +120,83 @@ export class CourseService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException("Course not found");
     }
 
     // If not admin and course is draft, deny access
-    if (!isAdmin && course.status === 'draft') {
-      throw new NotFoundException('Course not found');
+    if (!isAdmin && course.status === "draft") {
+      throw new NotFoundException("Course not found");
     }
 
-    return course;
+    // Join lessons
+    const lessons = await this.lessonService.findByCourseId(id, isAdmin);
+
+    return {
+      ...((course as any).toObject
+        ? (course as any).toObject()
+        : { ...course }),
+      lessons,
+    };
   }
 
   async findBySlug(slug: string, isAdmin: boolean = false) {
-    console.log('🔍 Finding course by slug:', slug);
-    console.log('🔍 isAdmin:', isAdmin);
-
     const course = await this.courseRepository.findBySlug(slug);
 
-    console.log('🔍 Course found:', course);
-
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException("Course not found");
     }
 
     // If not admin and course is draft, deny access
-    if (!isAdmin && course.status === 'draft') {
-      console.log('⛔ Course is draft and user is not admin');
-      throw new NotFoundException('Course not found');
+    if (!isAdmin && course.status === "draft") {
+      console.log("⛔ Course is draft and user is not admin");
+      throw new NotFoundException("Course not found");
     }
 
-    return course;
+    // Join lessons
+    const lessons = await this.lessonService.findByCourseId(
+      (course as any)._id.toString(),
+      isAdmin
+    );
+
+    return {
+      ...((course as any).toObject
+        ? (course as any).toObject()
+        : { ...course }),
+      lessons,
+    };
   }
 
   async update(id: string, updateCourseDto: UpdateCourseDto) {
     // Validate price if provided
     if (updateCourseDto.price !== undefined && updateCourseDto.price < 0) {
-      throw new BadRequestException('Price must be greater than or equal to 0');
+      throw new BadRequestException("Price must be greater than or equal to 0");
     }
 
     // Get existing course to compare title
     const existingCourse = await this.courseRepository.findById(id);
     if (!existingCourse) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException("Course not found");
     }
 
     // If title is being updated AND is different from current title, regenerate slug
     const updateData: any = { ...updateCourseDto };
-    if (updateCourseDto.title && updateCourseDto.title !== existingCourse.title) {
+    if (
+      updateCourseDto.title &&
+      updateCourseDto.title !== existingCourse.title
+    ) {
       updateData.slug = this.generateSlug(updateCourseDto.title);
-      console.log('📝 Title changed - Regenerating slug:', updateData.slug);
+      console.log("📝 Title changed - Regenerating slug:", updateData.slug);
     } else {
-      console.log('📝 Title unchanged - Keeping existing slug:', existingCourse.slug);
+      console.log(
+        "📝 Title unchanged - Keeping existing slug:",
+        existingCourse.slug
+      );
     }
 
     const course = await this.courseRepository.updateById(id, updateData);
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException("Course not found");
     }
 
     return course;
@@ -160,33 +206,35 @@ export class CourseService {
     const course = await this.courseRepository.deleteById(id);
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException("Course not found");
     }
 
-    return { message: 'Course deleted successfully' };
+    return { message: "Course deleted successfully" };
   }
 
   async removeMany(ids: string[]) {
-    const deletePromises = ids.map(id => this.courseRepository.deleteById(id));
-    await Promise.all(deletePromises);
-    return { message: `${ids.length} courses deleted successfully` };
+    return this.courseRepository.deleteMany({ _id: { $in: ids } });
+  }
+
+  async hardDeleteMany(ids: string[]) {
+    return this.courseRepository.hardDeleteMany({ _id: { $in: ids } });
   }
 
   async hardDelete(id: string) {
     const course = await this.courseRepository.hardDeleteById(id);
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException("Course not found");
     }
 
-    return { message: 'Course permanently deleted' };
+    return { message: "Course permanently deleted" };
   }
 
   async restore(id: string) {
     const course = await this.courseRepository.restore(id);
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException("Course not found");
     }
 
     return course;
