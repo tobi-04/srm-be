@@ -1,0 +1,208 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { LandingPageService } from './landing-page.service';
+import {
+  CreateLandingPageDto,
+  UpdateLandingPageDto,
+  SearchLandingPageDto,
+} from './dto/landing-page.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
+
+@ApiTags('landing-pages')
+@Controller('landing-pages')
+export class LandingPageController {
+  constructor(private readonly landingPageService: LandingPageService) {}
+
+  @Post()
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new landing page (Admin only)' })
+  @ApiResponse({ status: 201, description: 'Landing page created successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  async create(@Body() createLandingPageDto: CreateLandingPageDto) {
+    console.log('📝 POST /landing-pages - Creating landing page:', createLandingPageDto);
+    const result = await this.landingPageService.create(createLandingPageDto);
+    console.log('✅ POST /landing-pages - Landing page created:', result);
+    return result;
+  }
+
+  @Get()
+  @UseGuards(OptionalJwtGuard)
+  @ApiOperation({ summary: 'Get all landing pages with pagination and filtering' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({ name: 'sort', required: false, type: String, example: 'created_at' })
+  @ApiQuery({ name: 'order', required: false, enum: ['asc', 'desc'], example: 'desc' })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'course_id', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Landing pages retrieved successfully' })
+  async findAll(@Query() paginationDto: PaginationDto, @Request() req: any) {
+    const searchDto: SearchLandingPageDto = {
+      course_id: paginationDto['course_id'],
+      status: paginationDto.status as any,
+    };
+
+    const isAdmin = req.user?.role === 'admin';
+
+    return this.landingPageService.findAll(paginationDto, searchDto, isAdmin);
+  }
+
+  @Get('slug/:slug')
+  @UseGuards(OptionalJwtGuard)
+  @ApiOperation({ summary: 'Get a landing page by slug (Public)' })
+  @ApiParam({ name: 'slug', type: String })
+  @ApiResponse({ status: 200, description: 'Landing page retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Landing page not found' })
+  async findBySlug(@Param('slug') slug: string, @Request() req: any) {
+    const isAdmin = req.user?.role === 'admin';
+    return this.landingPageService.findBySlug(slug, isAdmin);
+  }
+
+  @Get('course/:courseId')
+  @UseGuards(OptionalJwtGuard)
+  @ApiOperation({ summary: 'Get landing pages by course ID' })
+  @ApiParam({ name: 'courseId', type: String })
+  @ApiResponse({ status: 200, description: 'Landing pages retrieved successfully' })
+  async findByCourseId(@Param('courseId') courseId: string) {
+    return this.landingPageService.findByCourseId(courseId);
+  }
+
+  @Get(':id')
+  @UseGuards(OptionalJwtGuard)
+  @ApiOperation({ summary: 'Get a landing page by ID' })
+  @ApiParam({ name: 'id', type: String })
+  @ApiResponse({ status: 200, description: 'Landing page retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Landing page not found' })
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    const isAdmin = req.user?.role === 'admin';
+    return this.landingPageService.findOne(id, isAdmin);
+  }
+
+  @Put(':id')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a landing page (Admin only)' })
+  @ApiParam({ name: 'id', type: String })
+  @ApiResponse({ status: 200, description: 'Landing page updated successfully' })
+  @ApiResponse({ status: 404, description: 'Landing page not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  async update(
+    @Param('id') id: string,
+    @Body() updateLandingPageDto: UpdateLandingPageDto,
+  ) {
+    return this.landingPageService.update(id, updateLandingPageDto);
+  }
+
+  @Delete('bulk/delete')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Soft delete multiple landing pages (Admin only)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { ids: { type: 'array', items: { type: 'string' } } },
+    },
+  })
+  @ApiResponse({ status: 204, description: 'Landing pages deleted successfully (soft delete)' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  async removeMany(@Body('ids') ids: string[]) {
+    console.log('🗑️ Bulk soft deleting landing pages:', ids);
+    await this.landingPageService.removeMany(ids);
+  }
+
+  @Delete('bulk/hard')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Permanently delete multiple landing pages (Admin only)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { ids: { type: 'array', items: { type: 'string' } } },
+    },
+  })
+  @ApiResponse({ status: 204, description: 'Landing pages permanently deleted' })
+  async hardDeleteMany(@Body('ids') ids: string[]) {
+    await this.landingPageService.hardDeleteMany(ids);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Soft delete a landing page (Admin only)' })
+  @ApiParam({ name: 'id', type: String })
+  @ApiResponse({ status: 204, description: 'Landing page deleted successfully (soft delete)' })
+  @ApiResponse({ status: 404, description: 'Landing page not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  async remove(@Param('id') id: string) {
+    await this.landingPageService.remove(id);
+  }
+
+  @Delete(':id/hard')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Permanently delete a landing page (Admin only)' })
+  @ApiParam({ name: 'id', type: String })
+  @ApiResponse({ status: 204, description: 'Landing page permanently deleted' })
+  @ApiResponse({ status: 404, description: 'Landing page not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  async hardDelete(@Param('id') id: string) {
+    await this.landingPageService.hardDelete(id);
+  }
+
+  @Put(':id/restore')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Restore a soft-deleted landing page (Admin only)' })
+  @ApiParam({ name: 'id', type: String })
+  @ApiResponse({ status: 200, description: 'Landing page restored successfully' })
+  @ApiResponse({ status: 404, description: 'Landing page not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  async restore(@Param('id') id: string) {
+    return this.landingPageService.restore(id);
+  }
+}

@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { CourseModule } from './modules/course/course.module';
 import { LessonModule } from './modules/lesson/lesson.module';
+import { LandingPageModule } from './modules/landing-page/landing-page.module';
 import { ApiLoggerMiddleware } from './common/middleware/api-logger.middleware';
 
 @Module({
@@ -25,6 +26,7 @@ import { ApiLoggerMiddleware } from './common/middleware/api-logger.middleware';
     AuditLogModule,
     CourseModule,
     LessonModule,
+    LandingPageModule,
   ],
   controllers: [AppController],
   providers: [AppService],
