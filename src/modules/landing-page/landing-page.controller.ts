@@ -130,19 +130,19 @@ export class LandingPageController {
   @Roles('admin')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Soft delete multiple landing pages (Admin only)' })
+  @ApiOperation({ summary: 'Permanently delete multiple landing pages (Admin only)' })
   @ApiBody({
     schema: {
       type: 'object',
       properties: { ids: { type: 'array', items: { type: 'string' } } },
     },
   })
-  @ApiResponse({ status: 204, description: 'Landing pages deleted successfully (soft delete)' })
+  @ApiResponse({ status: 204, description: 'Landing pages permanently deleted' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
   async removeMany(@Body('ids') ids: string[]) {
-    console.log('🗑️ Bulk soft deleting landing pages:', ids);
-    await this.landingPageService.removeMany(ids);
+    console.log('🗑️ Bulk hard deleting landing pages:', ids);
+    await this.landingPageService.hardDeleteMany(ids);
   }
 
   @Delete('bulk/hard')
@@ -167,14 +167,14 @@ export class LandingPageController {
   @Roles('admin')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Soft delete a landing page (Admin only)' })
+  @ApiOperation({ summary: 'Permanently delete a landing page (Admin only)' })
   @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 204, description: 'Landing page deleted successfully (soft delete)' })
+  @ApiResponse({ status: 204, description: 'Landing page permanently deleted' })
   @ApiResponse({ status: 404, description: 'Landing page not found' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
   async remove(@Param('id') id: string) {
-    await this.landingPageService.remove(id);
+    await this.landingPageService.hardDelete(id);
   }
 
   @Delete(':id/hard')

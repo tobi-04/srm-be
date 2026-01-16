@@ -120,7 +120,7 @@ export class LandingPageService {
       searchFields: ['title', 'slug'],
       useCache: true,
       cacheTTL: 300,
-      includeDeleted: isAdmin,
+      includeDeleted: false, // Never include soft-deleted items
     });
 
     return result;
