@@ -1,24 +1,29 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { RedisCacheModule } from './common/cache/redis-cache.module';
-import { R2Module } from './common/storage/r2.module';
-import { UserModule } from './modules/user/user.module';
-import { AuthModule } from './modules/auth/auth.module';
-import { AuditLogModule } from './modules/audit-log/audit-log.module';
-import { CourseModule } from './modules/course/course.module';
-import { LessonModule } from './modules/lesson/lesson.module';
-import { LandingPageModule } from './modules/landing-page/landing-page.module';
-import { ApiLoggerMiddleware } from './common/middleware/api-logger.middleware';
+import { Module, NestModule, MiddlewareConsumer } from "@nestjs/common";
+import { MongooseModule } from "@nestjs/mongoose";
+import { ConfigModule } from "@nestjs/config";
+import { AppController } from "./app.controller";
+import { AppService } from "./app.service";
+import { RedisCacheModule } from "./common/cache/redis-cache.module";
+import { R2Module } from "./common/storage/r2.module";
+import { UserModule } from "./modules/user/user.module";
+import { AuthModule } from "./modules/auth/auth.module";
+import { AuditLogModule } from "./modules/audit-log/audit-log.module";
+import { CourseModule } from "./modules/course/course.module";
+import { LessonModule } from "./modules/lesson/lesson.module";
+import { LandingPageModule } from "./modules/landing-page/landing-page.module";
+import { PaymentModule } from "./modules/payment/payment.module";
+import { PaymentTransactionModule } from "./modules/payment-transaction/payment-transaction.module";
+import { CourseEnrollmentModule } from "./modules/course-enrollment/course-enrollment.module";
+import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/srm-lesson'),
+    MongooseModule.forRoot(
+      process.env.MONGODB_URI || "mongodb://localhost:27017/srm-lesson"
+    ),
     RedisCacheModule,
     R2Module,
     UserModule,
@@ -27,14 +32,15 @@ import { ApiLoggerMiddleware } from './common/middleware/api-logger.middleware';
     CourseModule,
     LessonModule,
     LandingPageModule,
+    PaymentModule,
+    PaymentTransactionModule,
+    CourseEnrollmentModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(ApiLoggerMiddleware)
-      .forRoutes('*'); // Apply to all routes
+    consumer.apply(ApiLoggerMiddleware).forRoutes("*"); // Apply to all routes
   }
 }

@@ -9,6 +9,8 @@ import {
   UserFormSubmissionSchema,
 } from "./entities/user-form-submission.entity";
 import { RedisCacheModule } from "../../common/cache/redis-cache.module";
+import { CourseEnrollmentModule } from "../course-enrollment/course-enrollment.module";
+import { UserModule } from "../user/user.module";
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { RedisCacheModule } from "../../common/cache/redis-cache.module";
       { name: UserFormSubmission.name, schema: UserFormSubmissionSchema },
     ]),
     RedisCacheModule,
+    CourseEnrollmentModule,
+    UserModule,
   ],
   controllers: [LandingPageController],
   providers: [LandingPageService, LandingPageRepository],

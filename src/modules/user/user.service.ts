@@ -1,8 +1,12 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { UserRepository } from './user.repository';
-import { CreateUserDto, UpdateUserDto, SearchUserDto } from './dto/user.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-import * as bcrypt from 'bcryptjs';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
+import { UserRepository } from "./user.repository";
+import { CreateUserDto, UpdateUserDto, SearchUserDto } from "./dto/user.dto";
+import { PaginationDto } from "../../common/dto/pagination.dto";
+import * as bcrypt from "bcryptjs";
 
 @Injectable()
 export class UserService {
@@ -11,11 +15,11 @@ export class UserService {
   async create(createUserDto: CreateUserDto) {
     const existingUser = await this.userRepository.findByEmail(
       createUserDto.email,
-      false,
+      false
     );
 
     if (existingUser) {
-      throw new ConflictException('Email already exists');
+      throw new ConflictException("Email already exists");
     }
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
@@ -34,11 +38,11 @@ export class UserService {
       createUserDtos.map(async (dto) => ({
         ...dto,
         password: await bcrypt.hash(dto.password, 10),
-      })),
+      }))
     );
 
     const users = await this.userRepository.createMany(
-      usersWithHashedPasswords as any,
+      usersWithHashedPasswords as any
     );
 
     return users.map((user) => {
@@ -58,11 +62,11 @@ export class UserService {
     const result = await this.userRepository.paginate(filter, {
       page,
       limit,
-      sort: sort || 'created_at',
+      sort: sort || "created_at",
       order,
       search,
-      searchFields: ['name', 'email'],
-      select: ['-password'],
+      searchFields: ["name", "email"],
+      select: ["-password"],
       useCache: true,
       cacheTTL: 300,
     });
@@ -77,12 +81,12 @@ export class UserService {
 
   async findOne(id: string) {
     const user = await this.userRepository.findById(id, {
-      select: ['-password'],
+      select: ["-password"],
       useCache: true,
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     return user;
@@ -96,7 +100,7 @@ export class UserService {
     const user = await this.userRepository.updateById(id, updateUserDto as any);
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     const { password, ...result } = (user as any).toObject();
@@ -107,14 +111,14 @@ export class UserService {
     const user = await this.userRepository.deleteById(id);
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
-    return { message: 'User deleted successfully' };
+    return { message: "User deleted successfully" };
   }
 
   async removeMany(ids: string[]) {
-    const deletePromises = ids.map(id => this.userRepository.deleteById(id));
+    const deletePromises = ids.map((id) => this.userRepository.deleteById(id));
     await Promise.all(deletePromises);
     return { message: `${ids.length} users deleted successfully` };
   }
@@ -123,10 +127,14 @@ export class UserService {
     const user = await this.userRepository.restore(id);
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     const { password, ...result } = (user as any).toObject();
     return result;
+  }
+
+  async findByEmail(email: string) {
+    return this.userRepository.findByEmail(email, false);
   }
 }

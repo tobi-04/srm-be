@@ -11,10 +11,16 @@ import {
 } from "./dto/landing-page.dto";
 import { SubmitUserFormDto } from "./dto/submit-user-form.dto";
 import { PaginationDto } from "../../common/dto/pagination.dto";
+import { CourseEnrollmentService } from "../course-enrollment/course-enrollment.service";
+import { UserService } from "../user/user.service";
 
 @Injectable()
 export class LandingPageService {
-  constructor(private readonly landingPageRepository: LandingPageRepository) {}
+  constructor(
+    private readonly landingPageRepository: LandingPageRepository,
+    private readonly enrollmentService: CourseEnrollmentService,
+    private readonly userService: UserService
+  ) {}
 
   /**
    * Sanitize slug - remove special characters, convert to lowercase
@@ -240,7 +246,7 @@ export class LandingPageService {
   }
 
   /**
-   * Submit user form data
+   * Submit user form data - check for existing email and update if exists
    */
   async submitUserForm(slug: string, submitUserFormDto: SubmitUserFormDto) {
     // Find the landing page by slug
@@ -252,11 +258,59 @@ export class LandingPageService {
       throw new NotFoundException("Landing page not found");
     }
 
-    // Save the form submission
+    // Normalize email
+    const email = submitUserFormDto.email.toLowerCase().trim();
+
+    // Check if user with this email is already enrolled in the course
+    const user = await this.userService.findByEmail(email);
+    if (user) {
+      const isEnrolled = await this.enrollmentService.isUserEnrolled(
+        user._id.toString(),
+        landingPage.course_id
+      );
+      if (isEnrolled) {
+        throw new BadRequestException(
+          "You are already enrolled in this course."
+        );
+      }
+    }
+
+    // Check if submission with this email already exists for this landing page
+
+    const existingSubmission =
+      await this.landingPageRepository.findUserSubmissionByEmail(
+        email,
+        landingPage._id.toString()
+      );
+
+    if (existingSubmission) {
+      // Update existing submission
+      const updated = await this.landingPageRepository.updateUserSubmission(
+        existingSubmission._id.toString(),
+        {
+          name: submitUserFormDto.name,
+          email: email,
+          phone: submitUserFormDto.phone,
+          address: submitUserFormDto.address,
+          birthday: submitUserFormDto.birthday
+            ? new Date(submitUserFormDto.birthday)
+            : undefined,
+          landing_page_id: landingPage._id.toString(),
+        }
+      );
+
+      return {
+        success: true,
+        message: "Form updated successfully",
+        submission_id: updated._id.toString(),
+      };
+    }
+
+    // Save new form submission
     const submission = await this.landingPageRepository.saveUserFormSubmission({
       landing_page_id: landingPage._id.toString(),
       name: submitUserFormDto.name,
-      email: submitUserFormDto.email,
+      email: email,
       phone: submitUserFormDto.phone,
       address: submitUserFormDto.address,
       birthday: submitUserFormDto.birthday
@@ -269,6 +323,19 @@ export class LandingPageService {
       message: "Form submitted successfully",
       submission_id: submission._id.toString(),
     };
+  }
+
+  /**
+   * Get user form submission by ID
+   */
+  async findUserSubmissionById(submissionId: string) {
+    const submission = await this.landingPageRepository.findUserSubmissionById(
+      submissionId
+    );
+    if (!submission) {
+      throw new NotFoundException("Submission not found");
+    }
+    return submission;
   }
 
   /**

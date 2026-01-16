@@ -64,6 +64,52 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
   }
 
   /**
+   * Find user form submission by ID
+   */
+  async findUserSubmissionById(
+    submissionId: string
+  ): Promise<UserFormSubmission | null> {
+    return this.userFormSubmissionModel.findById(submissionId);
+  }
+
+  /**
+   * Find user form submission by email and landing page ID
+   */
+  async findUserSubmissionByEmail(
+    email: string,
+    landingPageId: string
+  ): Promise<UserFormSubmission | null> {
+    return this.userFormSubmissionModel.findOne({
+      email,
+      landing_page_id: landingPageId,
+      is_deleted: false,
+    });
+  }
+
+  /**
+   * Update user form submission
+   */
+  async updateUserSubmission(
+    submissionId: string,
+    data: Partial<UserFormSubmission>
+  ): Promise<UserFormSubmission> {
+    const updated = await this.userFormSubmissionModel.findByIdAndUpdate(
+      submissionId,
+      {
+        ...data,
+        updated_at: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      throw new Error("Submission not found");
+    }
+
+    return updated;
+  }
+
+  /**
    * Find user form submissions by landing page ID
    */
   async findUserFormSubmissionsByLandingPageId(

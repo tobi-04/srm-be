@@ -1,15 +1,15 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
-import { BaseEntity } from '../../../common/entities/base.entity';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Document, HydratedDocument, Schema as MongooseSchema } from "mongoose";
+import { BaseEntity } from "../../../common/entities/base.entity";
 
 export enum LandingPageStatus {
-  DRAFT = 'draft',
-  PUBLISHED = 'published',
+  DRAFT = "draft",
+  PUBLISHED = "published",
 }
 
-@Schema({ collection: 'landing_pages', timestamps: false })
+@Schema({ collection: "landing_pages", timestamps: false })
 export class LandingPage extends BaseEntity {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Course', required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Course", required: true })
   course_id: string;
 
   @Prop({ required: true })
@@ -18,7 +18,11 @@ export class LandingPage extends BaseEntity {
   @Prop({ required: true, unique: true })
   slug: string;
 
-  @Prop({ type: String, enum: LandingPageStatus, default: LandingPageStatus.DRAFT })
+  @Prop({
+    type: String,
+    enum: LandingPageStatus,
+    default: LandingPageStatus.DRAFT,
+  })
   status: LandingPageStatus;
 
   // Craft.js serialized page structure for Step 1 (User Information Form)
@@ -42,7 +46,7 @@ export class LandingPage extends BaseEntity {
   form_fields: Array<{
     name: string;
     label: string;
-    type: 'text' | 'email' | 'tel' | 'textarea' | 'select';
+    type: "text" | "email" | "tel" | "textarea" | "select";
     required: boolean;
     placeholder?: string;
     options?: string[]; // For select fields
@@ -58,22 +62,30 @@ export class LandingPage extends BaseEntity {
   };
 
   // Email template for after payment
-  @Prop({ type: String, default: '' })
+  @Prop({ type: String, default: "" })
   email_template: string;
 
   // Metadata
   @Prop({ type: Object, default: {} })
-  metadata: {
+  metadata?: {
     primary_color?: string;
     button_text?: string;
     success_message?: string;
   };
+
+  @Prop({ type: Number, default: 0 })
+  course_price: number;
+
+  @Prop({ type: Boolean, default: true })
+  payment_enabled: boolean;
 }
 
 export type LandingPageDocument = HydratedDocument<LandingPage>;
 export const LandingPageSchema = SchemaFactory.createForClass(LandingPage);
 
-// Add indexes
-LandingPageSchema.index({ slug: 1 });
+// Indexes for efficient querying
 LandingPageSchema.index({ course_id: 1 });
-LandingPageSchema.index({ status: 1, is_deleted: 1 });
+LandingPageSchema.index({ slug: 1 });
+LandingPageSchema.index({ status: 1 });
+LandingPageSchema.index({ created_at: -1 });
+LandingPageSchema.index({ is_deleted: 1 });
