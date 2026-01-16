@@ -4,50 +4,59 @@ import {
   MinLength,
   IsOptional,
   IsBoolean,
-} from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+} from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateUserDto {
   @ApiProperty({
-    description: 'User email address',
-    example: 'john.doe@example.com'
+    description: "User email address",
+    example: "john.doe@example.com",
   })
   @IsEmail()
   email: string;
 
   @ApiProperty({
-    description: 'User full name',
-    example: 'John Doe',
-    minLength: 2
+    description: "User full name",
+    example: "John Doe",
+    minLength: 2,
   })
   @IsString()
   @MinLength(2)
   name: string;
 
   @ApiProperty({
-    description: 'User password',
-    example: 'password123',
-    minLength: 6
+    description: "User password",
+    example: "password123",
+    minLength: 6,
   })
   @IsString()
   @MinLength(6)
   password: string;
 
   @ApiPropertyOptional({
-    description: 'User role',
-    example: 'user',
-    default: 'user'
+    description: "User role",
+    example: "user",
+    default: "user",
   })
   @IsOptional()
   @IsString()
   role?: string;
+
+  @ApiPropertyOptional({
+    description: "Require password change on first login",
+    example: true,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  must_change_password?: boolean;
 }
 
 export class UpdateUserDto {
   @ApiPropertyOptional({
-    description: 'User full name',
-    example: 'Jane Doe',
-    minLength: 2
+    description: "User full name",
+    example: "Jane Doe",
+    minLength: 2,
   })
   @IsOptional()
   @IsString()
@@ -55,9 +64,9 @@ export class UpdateUserDto {
   name?: string;
 
   @ApiPropertyOptional({
-    description: 'User password',
-    example: 'newpassword123',
-    minLength: 6
+    description: "User password",
+    example: "newpassword123",
+    minLength: 6,
   })
   @IsOptional()
   @IsString()
@@ -65,17 +74,17 @@ export class UpdateUserDto {
   password?: string;
 
   @ApiPropertyOptional({
-    description: 'User role',
-    example: 'admin'
+    description: "User role",
+    example: "admin",
   })
   @IsOptional()
   @IsString()
   role?: string;
 
   @ApiPropertyOptional({
-    description: 'User active status',
+    description: "User active status",
     example: true,
-    default: true
+    default: true,
   })
   @IsOptional()
   @IsBoolean()
@@ -84,24 +93,24 @@ export class UpdateUserDto {
 
 export class SearchUserDto {
   @ApiPropertyOptional({
-    description: 'Search query for name or email',
-    example: 'john'
+    description: "Search query for name or email",
+    example: "john",
   })
   @IsOptional()
   @IsString()
   query?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter by role',
-    example: 'admin'
+    description: "Filter by role",
+    example: "admin",
   })
   @IsOptional()
   @IsString()
   role?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter by active status',
-    example: true
+    description: "Filter by active status",
+    example: true,
   })
   @IsOptional()
   @IsBoolean()

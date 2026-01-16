@@ -1,6 +1,8 @@
 import { Module, NestModule, MiddlewareConsumer } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { ConfigModule } from "@nestjs/config";
+import { BullModule } from "@nestjs/bullmq";
+import { EventEmitterModule } from "@nestjs/event-emitter";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { RedisCacheModule } from "./common/cache/redis-cache.module";
@@ -14,6 +16,7 @@ import { LandingPageModule } from "./modules/landing-page/landing-page.module";
 import { PaymentModule } from "./modules/payment/payment.module";
 import { PaymentTransactionModule } from "./modules/payment-transaction/payment-transaction.module";
 import { CourseEnrollmentModule } from "./modules/course-enrollment/course-enrollment.module";
+import { EmailAutomationModule } from "./modules/email-automation/email-automation.module";
 import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
 
 @Module({
@@ -24,6 +27,14 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
     MongooseModule.forRoot(
       process.env.MONGODB_URI || "mongodb://localhost:27017/srm-lesson"
     ),
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || "localhost",
+        port: parseInt(process.env.REDIS_PORT) || 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
+      },
+    }),
+    EventEmitterModule.forRoot(),
     RedisCacheModule,
     R2Module,
     UserModule,
@@ -35,6 +46,7 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
     PaymentModule,
     PaymentTransactionModule,
     CourseEnrollmentModule,
+    EmailAutomationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

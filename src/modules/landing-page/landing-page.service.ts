@@ -13,13 +13,17 @@ import { SubmitUserFormDto } from "./dto/submit-user-form.dto";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 import { CourseEnrollmentService } from "../course-enrollment/course-enrollment.service";
 import { UserService } from "../user/user.service";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import { UserRole } from "../user/entities/user.entity";
+import * as bcrypt from "bcryptjs";
 
 @Injectable()
 export class LandingPageService {
   constructor(
     private readonly landingPageRepository: LandingPageRepository,
     private readonly enrollmentService: CourseEnrollmentService,
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    private readonly eventEmitter: EventEmitter2
   ) {}
 
   /**
@@ -262,7 +266,7 @@ export class LandingPageService {
     const email = submitUserFormDto.email.toLowerCase().trim();
 
     // Check if user with this email is already enrolled in the course
-    const user = await this.userService.findByEmail(email);
+    let user = await this.userService.findByEmail(email);
     if (user) {
       const isEnrolled = await this.enrollmentService.isUserEnrolled(
         user._id.toString(),
@@ -276,12 +280,31 @@ export class LandingPageService {
     }
 
     // Check if submission with this email already exists for this landing page
-
     const existingSubmission =
       await this.landingPageRepository.findUserSubmissionByEmail(
         email,
         landingPage._id.toString()
       );
+
+    let isNewUser = false;
+
+    if (!user) {
+      // Create a skeleton user account for automation
+      isNewUser = true;
+      const randomDigits = Math.floor(
+        100000 + Math.random() * 900000
+      ).toString();
+      const password = `ZLP${randomDigits}`;
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      user = await this.userService.create({
+        email,
+        password: hashedPassword,
+        name: submitUserFormDto.name || "New User",
+        role: UserRole.USER,
+        must_change_password: true,
+      } as any);
+    }
 
     if (existingSubmission) {
       // Update existing submission
@@ -298,6 +321,25 @@ export class LandingPageService {
           landing_page_id: landingPage._id.toString(),
         }
       );
+
+      // Even if update, if it's "new" for the user system, we might want to emit
+      // But typically we emit on the FIRST submission
+      if (isNewUser) {
+        this.eventEmitter.emit("user.registered", {
+          userId: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          registeredAt: new Date(),
+        });
+
+        this.eventEmitter.emit("user.registered.no.purchase", {
+          userId: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          registeredAt: new Date(),
+          daysSinceRegistration: 0,
+        });
+      }
 
       return {
         success: true,
@@ -316,6 +358,22 @@ export class LandingPageService {
       birthday: submitUserFormDto.birthday
         ? new Date(submitUserFormDto.birthday)
         : undefined,
+    });
+
+    // Emit event
+    this.eventEmitter.emit("user.registered", {
+      userId: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      registeredAt: new Date(),
+    });
+
+    this.eventEmitter.emit("user.registered.no.purchase", {
+      userId: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      registeredAt: new Date(),
+      daysSinceRegistration: 0,
     });
 
     return {

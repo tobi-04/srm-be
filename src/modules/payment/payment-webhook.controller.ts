@@ -7,6 +7,7 @@ import {
   BadRequestException,
   Logger,
 } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ConfigService } from "@nestjs/config";
 import { PaymentTransactionService } from "../payment-transaction/payment-transaction.service";
 import { CourseEnrollmentService } from "../course-enrollment/course-enrollment.service";
@@ -14,6 +15,7 @@ import { UserService } from "../user/user.service";
 import { LandingPageService } from "../landing-page/landing-page.service";
 import { SepayWebhookDto } from "./dto/sepay-webhook.dto";
 import { PaymentTransactionStatus } from "../payment-transaction/entities/payment-transaction.entity";
+import { UserRole } from "../user/entities/user.entity";
 import * as bcrypt from "bcryptjs";
 
 @Controller("payment/webhook")
@@ -26,7 +28,8 @@ export class PaymentWebhookController {
     private readonly paymentTransactionService: PaymentTransactionService,
     private readonly courseEnrollmentService: CourseEnrollmentService,
     private readonly userService: UserService,
-    private readonly landingPageService: LandingPageService
+    private readonly landingPageService: LandingPageService,
+    private readonly eventEmitter: EventEmitter2
   ) {
     this.sepayApiKey =
       this.configService.get<string>("PAYMENT_SERVICE_SEPAY_KEY") || "";
@@ -105,12 +108,17 @@ export class PaymentWebhookController {
     // Note: We need to add a method to get submission by ID
     // For now, we'll extract from transaction metadata or create user directly
 
-    // 7. Create or find user account
-    const user = await this.createOrFindUser(transaction);
+    // 7. Get submission details for event data
+    const submission = await this.landingPageService.findUserSubmissionById(
+      transaction.user_form_submission_id
+    );
+
+    // 8. Create or find user account
+    const { user, tempPassword } = await this.createOrFindUser(transaction);
 
     this.logger.log(`👤 User account: ${user._id}`);
 
-    // 8. Create course enrollment
+    // 9. Create course enrollment
     try {
       await this.courseEnrollmentService.createEnrollment(
         user._id.toString(),
@@ -119,6 +127,20 @@ export class PaymentWebhookController {
       );
 
       this.logger.log("✅ Course enrollment created");
+
+      // Emit event for email automation
+      this.eventEmitter.emit("course.purchased", {
+        userId: user._id.toString(),
+        courseId: transaction.course_id,
+        courseTitle: transaction.metadata?.course_title || "Khóa học",
+        amount: transaction.amount,
+        purchasedAt: new Date(),
+        tempPassword: tempPassword, // Will be undefined if user already existed
+        isNewUser: !!tempPassword,
+        email: submission.email, // Use email from submission
+        name: submission.name, // Use name from submission
+        submissionId: submission._id.toString(),
+      });
     } catch (error: any) {
       if (error.message.includes("already enrolled")) {
         this.logger.warn("⚠️ User already enrolled in course");
@@ -142,7 +164,9 @@ export class PaymentWebhookController {
   /**
    * Create or find user account based on submission email
    */
-  private async createOrFindUser(transaction: any): Promise<any> {
+  private async createOrFindUser(
+    transaction: any
+  ): Promise<{ user: any; tempPassword?: string }> {
     // Get user form submission to extract email and name
     const submission = await this.landingPageService.findUserSubmissionById(
       transaction.user_form_submission_id
@@ -155,7 +179,7 @@ export class PaymentWebhookController {
 
     if (user) {
       this.logger.log(`👤 User already exists: ${email}`);
-      return user;
+      return { user };
     }
 
     // Generate random 6-digit password
@@ -170,12 +194,12 @@ export class PaymentWebhookController {
       email,
       password: hashedPassword,
       name: submission.name || "New User",
-      role: "student",
-    });
+      role: UserRole.USER,
+      must_change_password: true,
+    } as any);
 
     this.logger.log(`✅ User created: ${email} with password: ${password}`);
-    // TODO: Send email with password
 
-    return user;
+    return { user, tempPassword: password };
   }
 }

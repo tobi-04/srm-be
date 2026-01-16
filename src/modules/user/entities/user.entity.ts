@@ -1,14 +1,14 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { BaseEntity } from '../../../common/entities/base.entity';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument } from "mongoose";
+import { BaseEntity } from "../../../common/entities/base.entity";
 
 export enum UserRole {
-  ADMIN = 'admin',
-  SALE = 'sale',
-  USER = 'user',
+  ADMIN = "admin",
+  SALE = "sale",
+  USER = "user",
 }
 
-@Schema({ collection: 'users', timestamps: false })
+@Schema({ collection: "users", timestamps: false })
 export class User extends BaseEntity {
   @Prop({ required: true, unique: true })
   email: string;
@@ -24,11 +24,14 @@ export class User extends BaseEntity {
 
   @Prop({ default: true })
   is_active: boolean;
+
+  @Prop({ default: false })
+  must_change_password: boolean;
 }
 
 export type UserDocument = HydratedDocument<User>;
 export const UserSchema = SchemaFactory.createForClass(User);
 
 // Add indexes
-UserSchema.index({ name: 'text' });
+UserSchema.index({ name: "text" });
 UserSchema.index({ is_deleted: 1, is_active: 1 });
