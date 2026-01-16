@@ -77,8 +77,15 @@ export class AuthService {
     try {
       const user = await this.userRepository.findOne({ email: loginDto.email });
 
-      if (!user || !user.is_active || user.is_deleted) {
+      if (!user || user.is_deleted) {
         throw new UnauthorizedException("Invalid credentials");
+      }
+
+      // Check if account is locked
+      if (!user.is_active) {
+        throw new UnauthorizedException(
+          "ACCOUNT_LOCKED:Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin để được hỗ trợ."
+        );
       }
 
       const isPasswordValid = await bcrypt.compare(

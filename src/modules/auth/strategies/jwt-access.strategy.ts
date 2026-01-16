@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  Injectable,
+  UnauthorizedException,
+  ForbiddenException,
+} from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { UserRepository } from "../../user/user.repository";
@@ -28,8 +32,18 @@ export class JwtAccessStrategy extends PassportStrategy(
   async validate(payload: JwtPayload) {
     const user = await this.userRepository.findById(payload.sub);
 
-    if (!user || !user.is_active || user.is_deleted) {
-      throw new UnauthorizedException("User not found or inactive");
+    if (!user || user.is_deleted) {
+      throw new UnauthorizedException("User not found");
+    }
+
+    // Check if account is locked - return specific error code
+    if (!user.is_active) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: "ACCOUNT_LOCKED",
+        message:
+          "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin để được hỗ trợ.",
+      });
     }
 
     return {
