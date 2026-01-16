@@ -2,14 +2,15 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-} from '@nestjs/common';
-import { LandingPageRepository } from './landing-page.repository';
+} from "@nestjs/common";
+import { LandingPageRepository } from "./landing-page.repository";
 import {
   CreateLandingPageDto,
   UpdateLandingPageDto,
   SearchLandingPageDto,
-} from './dto/landing-page.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+} from "./dto/landing-page.dto";
+import { SubmitUserFormDto } from "./dto/submit-user-form.dto";
+import { PaginationDto } from "../../common/dto/pagination.dto";
 
 @Injectable()
 export class LandingPageService {
@@ -21,16 +22,19 @@ export class LandingPageService {
   private sanitizeSlug(text: string): string {
     return text
       .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/--+/g, '-')
+      .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/--+/g, "-")
       .trim();
   }
 
   /**
    * Check if slug is unique (excluding a specific ID if provided)
    */
-  private async isSlugUnique(slug: string, excludeId?: string): Promise<boolean> {
+  private async isSlugUnique(
+    slug: string,
+    excludeId?: string
+  ): Promise<boolean> {
     const existing = await this.landingPageRepository.findBySlug(slug, false);
 
     if (!existing) {
@@ -48,7 +52,10 @@ export class LandingPageService {
   /**
    * Generate a unique slug by adding a suffix if needed
    */
-  private async ensureUniqueSlug(baseSlug: string, excludeId?: string): Promise<string> {
+  private async ensureUniqueSlug(
+    baseSlug: string,
+    excludeId?: string
+  ): Promise<string> {
     const sanitized = this.sanitizeSlug(baseSlug);
 
     // Check if the base slug is available
@@ -66,7 +73,7 @@ export class LandingPageService {
 
       // Safety limit to prevent infinite loops
       if (counter > 1000) {
-        throw new BadRequestException('Unable to generate unique slug');
+        throw new BadRequestException("Unable to generate unique slug");
       }
     }
 
@@ -88,14 +95,14 @@ export class LandingPageService {
 
       return landingPage;
     } catch (error) {
-      throw new BadRequestException('Failed to create landing page');
+      throw new BadRequestException("Failed to create landing page");
     }
   }
 
   async findAll(
     paginationDto: PaginationDto,
     searchDto: SearchLandingPageDto,
-    isAdmin: boolean = false,
+    isAdmin: boolean = false
   ) {
     const { page, limit, sort, order, search } = paginationDto;
     const { course_id, status } = searchDto;
@@ -104,7 +111,7 @@ export class LandingPageService {
 
     // If not admin, only show published landing pages
     if (!isAdmin) {
-      filter.status = 'published';
+      filter.status = "published";
     } else if (status) {
       filter.status = status;
     }
@@ -114,10 +121,10 @@ export class LandingPageService {
     const result = await this.landingPageRepository.paginate(filter, {
       page,
       limit,
-      sort: sort || 'created_at',
+      sort: sort || "created_at",
       order,
       search,
-      searchFields: ['title', 'slug'],
+      searchFields: ["title", "slug"],
       useCache: true,
       cacheTTL: 300,
       includeDeleted: false, // Never include soft-deleted items
@@ -133,12 +140,12 @@ export class LandingPageService {
     });
 
     if (!landingPage) {
-      throw new NotFoundException('Landing page not found');
+      throw new NotFoundException("Landing page not found");
     }
 
     // If not admin and landing page is draft, deny access
-    if (!isAdmin && landingPage.status === 'draft') {
-      throw new NotFoundException('Landing page not found');
+    if (!isAdmin && landingPage.status === "draft") {
+      throw new NotFoundException("Landing page not found");
     }
 
     return landingPage;
@@ -148,12 +155,12 @@ export class LandingPageService {
     const landingPage = await this.landingPageRepository.findBySlug(slug);
 
     if (!landingPage) {
-      throw new NotFoundException('Landing page not found');
+      throw new NotFoundException("Landing page not found");
     }
 
     // If not admin and landing page is draft, deny access
-    if (!isAdmin && landingPage.status === 'draft') {
-      throw new NotFoundException('Landing page not found');
+    if (!isAdmin && landingPage.status === "draft") {
+      throw new NotFoundException("Landing page not found");
     }
 
     return landingPage;
@@ -166,20 +173,29 @@ export class LandingPageService {
   async update(id: string, updateLandingPageDto: UpdateLandingPageDto) {
     const existingLandingPage = await this.landingPageRepository.findById(id);
     if (!existingLandingPage) {
-      throw new NotFoundException('Landing page not found');
+      throw new NotFoundException("Landing page not found");
     }
 
     const updateData: any = { ...updateLandingPageDto };
 
     // If slug is being updated, ensure it's unique
-    if (updateLandingPageDto.slug && updateLandingPageDto.slug !== existingLandingPage.slug) {
-      updateData.slug = await this.ensureUniqueSlug(updateLandingPageDto.slug, id);
+    if (
+      updateLandingPageDto.slug &&
+      updateLandingPageDto.slug !== existingLandingPage.slug
+    ) {
+      updateData.slug = await this.ensureUniqueSlug(
+        updateLandingPageDto.slug,
+        id
+      );
     }
 
-    const landingPage = await this.landingPageRepository.updateById(id, updateData);
+    const landingPage = await this.landingPageRepository.updateById(
+      id,
+      updateData
+    );
 
     if (!landingPage) {
-      throw new NotFoundException('Landing page not found');
+      throw new NotFoundException("Landing page not found");
     }
 
     return landingPage;
@@ -189,10 +205,10 @@ export class LandingPageService {
     const landingPage = await this.landingPageRepository.deleteById(id);
 
     if (!landingPage) {
-      throw new NotFoundException('Landing page not found');
+      throw new NotFoundException("Landing page not found");
     }
 
-    return { message: 'Landing page deleted successfully' };
+    return { message: "Landing page deleted successfully" };
   }
 
   async removeMany(ids: string[]) {
@@ -207,19 +223,62 @@ export class LandingPageService {
     const landingPage = await this.landingPageRepository.hardDeleteById(id);
 
     if (!landingPage) {
-      throw new NotFoundException('Landing page not found');
+      throw new NotFoundException("Landing page not found");
     }
 
-    return { message: 'Landing page permanently deleted' };
+    return { message: "Landing page permanently deleted" };
   }
 
   async restore(id: string) {
     const landingPage = await this.landingPageRepository.restore(id);
 
     if (!landingPage) {
-      throw new NotFoundException('Landing page not found');
+      throw new NotFoundException("Landing page not found");
     }
 
     return landingPage;
+  }
+
+  /**
+   * Submit user form data
+   */
+  async submitUserForm(slug: string, submitUserFormDto: SubmitUserFormDto) {
+    // Find the landing page by slug
+    const landingPage = await this.landingPageRepository.findPublishedBySlug(
+      slug
+    );
+
+    if (!landingPage) {
+      throw new NotFoundException("Landing page not found");
+    }
+
+    // Save the form submission
+    const submission = await this.landingPageRepository.saveUserFormSubmission({
+      landing_page_id: landingPage._id.toString(),
+      name: submitUserFormDto.name,
+      email: submitUserFormDto.email,
+      phone: submitUserFormDto.phone,
+      address: submitUserFormDto.address,
+      birthday: submitUserFormDto.birthday
+        ? new Date(submitUserFormDto.birthday)
+        : undefined,
+    });
+
+    return {
+      success: true,
+      message: "Form submitted successfully",
+      submission_id: submission._id.toString(),
+    };
+  }
+
+  /**
+   * Get user form submissions for a landing page
+   */
+  async getUserFormSubmissions(landingPageId: string, page = 1, limit = 50) {
+    return this.landingPageRepository.findUserFormSubmissionsByLandingPageId(
+      landingPageId,
+      page,
+      limit
+    );
   }
 }
