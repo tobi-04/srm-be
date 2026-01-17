@@ -19,11 +19,14 @@ export class CourseRepository extends BaseRepository<Course> {
   /**
    * Find course by slug
    */
-  async findBySlug(slug: string, useCache = true): Promise<Course | null> {
-    return this.findOne(
+  async findBySlug(slug: string, useCache = false): Promise<Course | null> {
+    console.log('📦 Repository - Finding by slug:', slug);
+    const result = await this.findOne(
       { slug } as any,
       { useCache, cacheTTL: 600 },
     );
+    console.log('📦 Repository - Result:', result);
+    return result;
   }
 
   /**

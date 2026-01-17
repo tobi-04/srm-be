@@ -88,17 +88,6 @@ export class CourseController {
     return this.courseService.findAll(paginationDto, searchDto, isAdmin);
   }
 
-  @Get(':id')
-  @UseGuards(OptionalJwtGuard)
-  @ApiOperation({ summary: 'Get a course by ID' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Course retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Course not found' })
-  async findOne(@Param('id') id: string, @Request() req: any) {
-    const isAdmin = req.user?.role === 'admin';
-    return this.courseService.findOne(id, isAdmin);
-  }
-
   @Get('slug/:slug')
   @UseGuards(OptionalJwtGuard)
   @ApiOperation({ summary: 'Get a course by slug' })
@@ -108,6 +97,17 @@ export class CourseController {
   async findBySlug(@Param('slug') slug: string, @Request() req: any) {
     const isAdmin = req.user?.role === 'admin';
     return this.courseService.findBySlug(slug, isAdmin);
+  }
+
+  @Get(':id')
+  @UseGuards(OptionalJwtGuard)
+  @ApiOperation({ summary: 'Get a course by ID' })
+  @ApiParam({ name: 'id', type: String })
+  @ApiResponse({ status: 200, description: 'Course retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    const isAdmin = req.user?.role === 'admin';
+    return this.courseService.findOne(id, isAdmin);
   }
 
   @Put(':id')
@@ -124,6 +124,33 @@ export class CourseController {
     return this.courseService.update(id, updateCourseDto);
   }
 
+  @Delete('bulk/delete')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Soft delete multiple courses (Admin only)' })
+  @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
+  @ApiResponse({ status: 204, description: 'Courses deleted successfully (soft delete)' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  async removeMany(@Body('ids') ids: string[]) {
+    console.log('🗑️ Bulk soft deleting courses:', ids);
+    await this.courseService.removeMany(ids);
+  }
+
+  @Delete('bulk/hard')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Permanently delete multiple courses (Admin only)' })
+  @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
+  @ApiResponse({ status: 204, description: 'Courses permanently deleted' })
+  async hardDeleteMany(@Body('ids') ids: string[]) {
+    await this.courseService.hardDeleteMany(ids);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAccessGuard, RolesGuard)
   @Roles('admin')
@@ -137,20 +164,6 @@ export class CourseController {
   @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
   async remove(@Param('id') id: string) {
     await this.courseService.remove(id);
-  }
-
-  @Delete('bulk/delete')
-  @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Soft delete multiple courses (Admin only)' })
-  @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
-  @ApiResponse({ status: 204, description: 'Courses deleted successfully (soft delete)' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
-  async removeMany(@Body('ids') ids: string[]) {
-    await this.courseService.removeMany(ids);
   }
 
   @Delete(':id/hard')
