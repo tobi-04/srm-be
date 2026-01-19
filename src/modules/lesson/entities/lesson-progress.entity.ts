@@ -27,10 +27,27 @@ export class LessonProgress extends BaseEntity {
   status: LessonProgressStatus;
 
   @Prop({ type: Number, default: 0 })
-  watch_time: number; // seconds watched
+  watch_time: number; // unique seconds watched
 
   @Prop({ type: Number, default: 0 })
   last_position: number; // last video position in seconds
+
+  @Prop({ type: Number, default: 0 })
+  duration: number; // total video duration in seconds
+
+  @Prop({ type: Number, default: 0 })
+  progress_percent: number; // completion percentage (0-100)
+
+  @Prop({
+    type: [
+      {
+        start: { type: Number, required: true },
+        end: { type: Number, required: true },
+      },
+    ],
+    default: [],
+  })
+  watched_segments: { start: number; end: number }[];
 
   @Prop({ type: Date, required: false })
   started_at?: Date;

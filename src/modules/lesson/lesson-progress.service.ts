@@ -47,6 +47,46 @@ export class LessonProgressService {
   }
 
   /**
+   * Helper: Merge overlapping segments
+   */
+  private mergeSegments(
+    segments: { start: number; end: number }[],
+  ): { start: number; end: number }[] {
+    if (segments.length === 0) return [];
+
+    // Sort by start time
+    const sorted = [...segments].sort((a, b) => a.start - b.start);
+
+    const merged: { start: number; end: number }[] = [];
+    let current = sorted[0];
+
+    for (let i = 1; i < sorted.length; i++) {
+      const next = sorted[i];
+
+      // If overlap or contiguous
+      if (current.end >= next.start) {
+        current.end = Math.max(current.end, next.end);
+      } else {
+        merged.push(current);
+        current = next;
+      }
+    }
+
+    merged.push(current);
+    return merged;
+  }
+
+  /**
+   * Helper: Calculate total unique watched time from segments
+   */
+  private calculateTotalWatchedTime(
+    segments: { start: number; end: number }[],
+  ): number {
+    const merged = this.mergeSegments(segments);
+    return merged.reduce((total, s) => total + (s.end - s.start), 0);
+  }
+
+  /**
    * Update progress for a lesson
    */
   async updateProgress(
@@ -55,34 +95,85 @@ export class LessonProgressService {
     data: {
       watch_time?: number;
       last_position?: number;
+      duration?: number;
       status?: LessonProgressStatus;
+      watched_segments?: { start: number; end: number }[];
+      completed?: boolean;
     },
   ): Promise<LessonProgress | null> {
+    const progress = await this.lessonProgressModel.findOne({
+      user_id: userId,
+      lesson_id: lessonId,
+      is_deleted: false,
+    });
+
+    if (!progress) return null;
+
     const updateObj: any = {
       updated_at: new Date(),
     };
 
-    if (data.watch_time !== undefined) {
-      updateObj.watch_time = data.watch_time;
+    // Update duration if provided
+    if (data.duration && data.duration > 0) {
+      updateObj.duration = data.duration;
     }
+
+    // Update last position if provided
     if (data.last_position !== undefined) {
       updateObj.last_position = data.last_position;
     }
-    if (data.status !== undefined) {
+
+    // Handle watched segments and recalculate progress
+    let currentSegments = [...(progress.watched_segments || [])];
+    if (data.watched_segments && data.watched_segments.length > 0) {
+      currentSegments = [...currentSegments, ...data.watched_segments];
+      const mergedSegments = this.mergeSegments(currentSegments);
+      updateObj.watched_segments = mergedSegments;
+
+      const totalUniqueTime = this.calculateTotalWatchedTime(mergedSegments);
+      updateObj.watch_time = totalUniqueTime;
+
+      const duration = data.duration || progress.duration || 0;
+      if (duration > 0) {
+        const percent = Math.min(100, (totalUniqueTime / duration) * 100);
+        updateObj.progress_percent = percent;
+
+        // Auto completion at 70%
+        if (
+          percent >= 70 &&
+          progress.status !== LessonProgressStatus.COMPLETED
+        ) {
+          updateObj.status = LessonProgressStatus.COMPLETED;
+          updateObj.completed_at = new Date();
+        }
+      }
+    }
+
+    // Manual status update
+    if (data.status) {
       updateObj.status = data.status;
       if (
         data.status === LessonProgressStatus.IN_PROGRESS &&
-        !updateObj.started_at
+        !progress.started_at
       ) {
         updateObj.started_at = new Date();
       }
-      if (data.status === LessonProgressStatus.COMPLETED) {
+      if (
+        data.status === LessonProgressStatus.COMPLETED &&
+        !progress.completed_at
+      ) {
         updateObj.completed_at = new Date();
       }
     }
 
+    // Handle legacy/manual completion flag
+    if (data.completed && progress.status !== LessonProgressStatus.COMPLETED) {
+      updateObj.status = LessonProgressStatus.COMPLETED;
+      updateObj.completed_at = new Date();
+    }
+
     return this.lessonProgressModel.findOneAndUpdate(
-      { user_id: userId, lesson_id: lessonId, is_deleted: false },
+      { _id: progress._id },
       { $set: updateObj },
       { new: true },
     );

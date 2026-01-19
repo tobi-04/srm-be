@@ -45,6 +45,7 @@ export class StudentCourseController {
   @Get()
   async getEnrolledCourses(@Req() req: StudentRequest) {
     const userId = req.user.userId;
+    const isAdmin = req.user?.role === UserRole.ADMIN;
     const cacheKey = `enrolled:${userId}`;
 
     // Try cache first
@@ -53,8 +54,20 @@ export class StudentCourseController {
       return cached;
     }
 
-    const enrollments = await this.enrollmentService.getUserEnrollments(userId);
-    const courseIds = enrollments.map((e) => e.course_id);
+    let courseIds: string[];
+    if (isAdmin) {
+      // For Admin, fetch all published courses (or all courses they can access)
+      const courses = await this.courseService.findAll(
+        { page: 1, limit: 100 },
+        {},
+        true,
+      );
+      courseIds = courses.data.map((c: any) => c._id.toString());
+    } else {
+      const enrollments =
+        await this.enrollmentService.getUserEnrollments(userId);
+      courseIds = enrollments.map((e) => e.course_id);
+    }
 
     // Fetch course details with progress
     const courses = await Promise.all(
@@ -142,7 +155,6 @@ export class StudentCourseController {
     );
 
     // Get progress for visible lessons in parallel with other info if possible,
-    // but we need lessonIds first.
     const lessonIds = visibleLessons.map((l: any) => l._id.toString());
     const [progressMap, progressSummary] = await Promise.all([
       this.lessonProgressService.getProgressForLessons(userId, lessonIds),
@@ -153,21 +165,68 @@ export class StudentCourseController {
       ),
     ]);
 
-    // Add progress and chapter_index to lessons
-    const lessonsWithProgress = visibleLessons.map((lesson: any) => ({
-      _id: lesson._id,
-      title: lesson.title,
-      description: lesson.description,
-      video: lesson.video,
-      order: lesson.order,
-      chapter_index: lesson.chapter_index || 0, // Critical missing field
-      status: lesson.status,
-      progress: progressMap.get(lesson._id.toString()) || {
-        status: LessonProgressStatus.NOT_STARTED,
-        watch_time: 0,
-        last_position: 0,
+    // Sort lessons by order to determine locking
+    const sortedLessons = [...visibleLessons].sort((a, b) => a.order - b.order);
+
+    // Add progress and locking logic
+    let firstLockedFound = false;
+    let autoResumeLessonId: string | null = null;
+
+    const lessonsWithProgress = sortedLessons.map(
+      (lesson: any, index: number) => {
+        const progress = progressMap.get(lesson._id.toString()) || {
+          status: LessonProgressStatus.NOT_STARTED,
+          watch_time: 0,
+          last_position: 0,
+        };
+
+        // Sequential Locking:
+        // A lesson is LOCKED if:
+        // 1. It's not the first lesson AND
+        // 2. The previous lesson is NOT completed
+        let isLocked = false;
+        if (index > 0) {
+          const prevLesson = sortedLessons[index - 1];
+          const prevProgress = progressMap.get(prevLesson._id.toString());
+          if (
+            !prevProgress ||
+            prevProgress.status !== LessonProgressStatus.COMPLETED
+          ) {
+            isLocked = true;
+          }
+        }
+
+        // Admin can still bypass in navigateToLesson, but we show the lock in UI
+        // if (isAdmin) isLocked = false;
+
+        // Determine Auto-Resume Lesson:
+        // The first lesson that is "in_progress" OR the first "not_started" that is not locked.
+        if (!autoResumeLessonId && !isLocked) {
+          if (progress.status === LessonProgressStatus.IN_PROGRESS) {
+            autoResumeLessonId = lesson._id.toString();
+          } else if (progress.status === LessonProgressStatus.NOT_STARTED) {
+            autoResumeLessonId = lesson._id.toString();
+          }
+        }
+
+        return {
+          _id: lesson._id,
+          title: lesson.title,
+          description: lesson.description,
+          video: lesson.video,
+          order: lesson.order,
+          chapter_index: lesson.chapter_index || 0,
+          status: lesson.status,
+          is_locked: isLocked, // New field for sequential locking
+          progress,
+        };
       },
-    }));
+    );
+
+    // If all lessons are completed, auto resume to the last lesson or first
+    if (!autoResumeLessonId && lessonsWithProgress.length > 0) {
+      autoResumeLessonId = lessonsWithProgress[0]._id;
+    }
 
     const result = {
       _id: course._id,
@@ -179,6 +238,7 @@ export class StudentCourseController {
       lessons: lessonsWithProgress,
       totalLessons: visibleLessons.length,
       progress: progressSummary,
+      autoResumeLessonId, // New field for frontend to jump to
     };
 
     // Cache for 10 minutes
@@ -297,33 +357,32 @@ export class StudentCourseController {
     body: {
       watch_time?: number;
       last_position?: number;
+      duration?: number;
+      watched_segments?: { start: number; end: number }[];
       completed?: boolean;
     },
     @Req() req: StudentRequest,
   ) {
     const userId = req.user.userId;
+    const isAdmin = req.user?.role === UserRole.ADMIN;
 
-    // Check enrollment
-    const isEnrolled = await this.enrollmentService.isUserEnrolled(
-      userId,
-      courseId,
-    );
+    // Optimized: Check enrollment (Admin bypasses this)
+    const isEnrolled =
+      isAdmin ||
+      (await this.enrollmentService.isUserEnrolled(userId, courseId));
 
     if (!isEnrolled) {
       throw new ForbiddenException("Bạn chưa đăng ký khóa học này");
     }
 
     // Prepare update data
-    const updateData: any = {};
-    if (body.watch_time !== undefined) {
-      updateData.watch_time = body.watch_time;
-    }
-    if (body.last_position !== undefined) {
-      updateData.last_position = body.last_position;
-    }
-    if (body.completed) {
-      updateData.status = LessonProgressStatus.COMPLETED;
-    }
+    const updateData: any = {
+      watch_time: body.watch_time,
+      last_position: body.last_position,
+      duration: body.duration,
+      watched_segments: body.watched_segments,
+      completed: body.completed,
+    };
 
     // Update progress
     const progress = await this.lessonProgressService.updateProgress(
@@ -333,8 +392,10 @@ export class StudentCourseController {
     );
 
     // Invalidate cache
-    await this.cacheService.del(`course:student:${courseId}:${userId}`);
-    await this.cacheService.del(`progress:${userId}:${courseId}`);
+    await Promise.all([
+      this.cacheService.del(`course:student:${courseId}:${userId}`),
+      this.cacheService.del(`progress:${userId}:${courseId}`),
+    ]);
 
     return progress;
   }
@@ -348,6 +409,7 @@ export class StudentCourseController {
     @Req() req: StudentRequest,
   ) {
     const userId = req.user.userId;
+    const isAdmin = req.user?.role === UserRole.ADMIN;
     const cacheKey = `progress:${userId}:${courseId}`;
 
     // Try cache first
@@ -356,11 +418,10 @@ export class StudentCourseController {
       return cached;
     }
 
-    // Check enrollment
-    const isEnrolled = await this.enrollmentService.isUserEnrolled(
-      userId,
-      courseId,
-    );
+    // Check enrollment (Admin bypasses this)
+    const isEnrolled =
+      isAdmin ||
+      (await this.enrollmentService.isUserEnrolled(userId, courseId));
 
     if (!isEnrolled) {
       throw new ForbiddenException("Bạn chưa đăng ký khóa học này");
