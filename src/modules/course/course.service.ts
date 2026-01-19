@@ -20,7 +20,7 @@ export class CourseService {
   constructor(
     private readonly courseRepository: CourseRepository,
     @Inject(forwardRef(() => LessonService))
-    private readonly lessonService: LessonService
+    private readonly lessonService: LessonService,
   ) {}
 
   /**
@@ -68,7 +68,7 @@ export class CourseService {
     }));
 
     const courses = await this.courseRepository.createMany(
-      coursesWithSlugs as any
+      coursesWithSlugs as any,
     );
     return courses;
   }
@@ -76,7 +76,7 @@ export class CourseService {
   async findAll(
     paginationDto: PaginationDto,
     searchDto: SearchCourseDto,
-    isAdmin: boolean = false
+    isAdmin: boolean = false,
   ) {
     const { page, limit, sort, order, search } = paginationDto;
     const { status, category, minPrice, maxPrice } = searchDto;
@@ -114,10 +114,14 @@ export class CourseService {
   }
 
   async findOne(id: string, isAdmin: boolean = false) {
-    const course = await this.courseRepository.findById(id, {
-      useCache: true,
-      cacheTTL: 600,
-    });
+    // Optimized: Fetch course and lessons in parallel
+    const [course, lessons] = await Promise.all([
+      this.courseRepository.findById(id, {
+        useCache: true,
+        cacheTTL: 600,
+      }),
+      this.lessonService.findByCourseId(id, isAdmin),
+    ]);
 
     if (!course) {
       throw new NotFoundException("Course not found");
@@ -127,9 +131,6 @@ export class CourseService {
     if (!isAdmin && course.status === "draft") {
       throw new NotFoundException("Course not found");
     }
-
-    // Join lessons
-    const lessons = await this.lessonService.findByCourseId(id, isAdmin);
 
     return {
       ...((course as any).toObject
@@ -152,10 +153,10 @@ export class CourseService {
       throw new NotFoundException("Course not found");
     }
 
-    // Join lessons
+    // Fetch lessons in parallel with the course processing (after course is retrieved)
     const lessons = await this.lessonService.findByCourseId(
       (course as any)._id.toString(),
-      isAdmin
+      isAdmin,
     );
 
     return {
@@ -189,7 +190,7 @@ export class CourseService {
     } else {
       console.log(
         "📝 Title unchanged - Keeping existing slug:",
-        existingCourse.slug
+        existingCourse.slug,
       );
     }
 

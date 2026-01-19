@@ -17,6 +17,8 @@ import { PaymentModule } from "./modules/payment/payment.module";
 import { PaymentTransactionModule } from "./modules/payment-transaction/payment-transaction.module";
 import { CourseEnrollmentModule } from "./modules/course-enrollment/course-enrollment.module";
 import { EmailAutomationModule } from "./modules/email-automation/email-automation.module";
+import { TrafficSourceModule } from "./modules/traffic-source/traffic-source.module";
+import { SessionModule } from "./modules/session/session.module";
 import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
 
 @Module({
@@ -25,7 +27,7 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
       isGlobal: true,
     }),
     MongooseModule.forRoot(
-      process.env.MONGODB_URI || "mongodb://localhost:27017/srm-lesson"
+      process.env.MONGODB_URI || "mongodb://localhost:27017/srm-lesson",
     ),
     BullModule.forRoot({
       connection: {
@@ -47,6 +49,8 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
     PaymentTransactionModule,
     CourseEnrollmentModule,
     EmailAutomationModule,
+    TrafficSourceModule,
+    SessionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

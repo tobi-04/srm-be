@@ -13,6 +13,7 @@ import { SubmitUserFormDto } from "./dto/submit-user-form.dto";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 import { CourseEnrollmentService } from "../course-enrollment/course-enrollment.service";
 import { UserService } from "../user/user.service";
+import { TrafficSourceService } from "../traffic-source/traffic-source.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { UserRole } from "../user/entities/user.entity";
 import * as bcrypt from "bcryptjs";
@@ -23,7 +24,8 @@ export class LandingPageService {
     private readonly landingPageRepository: LandingPageRepository,
     private readonly enrollmentService: CourseEnrollmentService,
     private readonly userService: UserService,
-    private readonly eventEmitter: EventEmitter2
+    private readonly trafficSourceService: TrafficSourceService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -43,7 +45,7 @@ export class LandingPageService {
    */
   private async isSlugUnique(
     slug: string,
-    excludeId?: string
+    excludeId?: string,
   ): Promise<boolean> {
     const existing = await this.landingPageRepository.findBySlug(slug, false);
 
@@ -64,7 +66,7 @@ export class LandingPageService {
    */
   private async ensureUniqueSlug(
     baseSlug: string,
-    excludeId?: string
+    excludeId?: string,
   ): Promise<string> {
     const sanitized = this.sanitizeSlug(baseSlug);
 
@@ -91,6 +93,16 @@ export class LandingPageService {
   }
 
   async create(createLandingPageDto: CreateLandingPageDto) {
+    // Check if landing page already exists for this course
+    const existingLandingPages = await this.findByCourseId(
+      createLandingPageDto.course_id,
+    );
+    if (existingLandingPages && existingLandingPages.length > 0) {
+      throw new BadRequestException(
+        "A landing page already exists for this course",
+      );
+    }
+
     // Use provided slug or generate from title
     const baseSlug = createLandingPageDto.slug || createLandingPageDto.title;
 
@@ -112,7 +124,7 @@ export class LandingPageService {
   async findAll(
     paginationDto: PaginationDto,
     searchDto: SearchLandingPageDto,
-    isAdmin: boolean = false
+    isAdmin: boolean = false,
   ) {
     const { page, limit, sort, order, search } = paginationDto;
     const { course_id, status } = searchDto;
@@ -195,13 +207,13 @@ export class LandingPageService {
     ) {
       updateData.slug = await this.ensureUniqueSlug(
         updateLandingPageDto.slug,
-        id
+        id,
       );
     }
 
     const landingPage = await this.landingPageRepository.updateById(
       id,
-      updateData
+      updateData,
     );
 
     if (!landingPage) {
@@ -254,9 +266,8 @@ export class LandingPageService {
    */
   async submitUserForm(slug: string, submitUserFormDto: SubmitUserFormDto) {
     // Find the landing page by slug
-    const landingPage = await this.landingPageRepository.findPublishedBySlug(
-      slug
-    );
+    const landingPage =
+      await this.landingPageRepository.findPublishedBySlug(slug);
 
     if (!landingPage) {
       throw new NotFoundException("Landing page not found");
@@ -270,11 +281,11 @@ export class LandingPageService {
     if (user) {
       const isEnrolled = await this.enrollmentService.isUserEnrolled(
         user._id.toString(),
-        landingPage.course_id
+        landingPage.course_id,
       );
       if (isEnrolled) {
         throw new BadRequestException(
-          "You are already enrolled in this course."
+          "You are already enrolled in this course.",
         );
       }
     }
@@ -283,16 +294,38 @@ export class LandingPageService {
     const existingSubmission =
       await this.landingPageRepository.findUserSubmissionByEmail(
         email,
-        landingPage._id.toString()
+        landingPage._id.toString(),
       );
 
     let isNewUser = false;
+    let trafficSourceId: string | undefined;
+
+    // Handle traffic source if provided
+    if (submitUserFormDto.traffic_source && submitUserFormDto.session_id) {
+      try {
+        const trafficSource = await this.trafficSourceService.create({
+          utm_source: submitUserFormDto.traffic_source.utm_source,
+          utm_medium: submitUserFormDto.traffic_source.utm_medium,
+          utm_campaign: submitUserFormDto.traffic_source.utm_campaign,
+          utm_content: submitUserFormDto.traffic_source.utm_content,
+          utm_term: submitUserFormDto.traffic_source.utm_term,
+          landing_page:
+            submitUserFormDto.traffic_source.landing_page || `/landing/${slug}`,
+          referrer: submitUserFormDto.traffic_source.referrer,
+          session_id: submitUserFormDto.session_id,
+        });
+        trafficSourceId = trafficSource._id.toString();
+      } catch (error) {
+        // Silently fail - tracking should not block form submission
+        console.error("Failed to create traffic source:", error);
+      }
+    }
 
     if (!user) {
       // Create a skeleton user account for automation
       isNewUser = true;
       const randomDigits = Math.floor(
-        100000 + Math.random() * 900000
+        100000 + Math.random() * 900000,
       ).toString();
       const password = `ZLP${randomDigits}`;
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -303,6 +336,8 @@ export class LandingPageService {
         name: submitUserFormDto.name || "New User",
         role: UserRole.USER,
         must_change_password: true,
+        traffic_source_id: trafficSourceId,
+        first_session_id: submitUserFormDto.session_id,
       } as any);
     }
 
@@ -319,7 +354,8 @@ export class LandingPageService {
             ? new Date(submitUserFormDto.birthday)
             : undefined,
           landing_page_id: landingPage._id.toString(),
-        }
+          session_id: submitUserFormDto.session_id,
+        },
       );
 
       // Even if update, if it's "new" for the user system, we might want to emit
@@ -358,6 +394,8 @@ export class LandingPageService {
       birthday: submitUserFormDto.birthday
         ? new Date(submitUserFormDto.birthday)
         : undefined,
+      traffic_source_id: trafficSourceId,
+      session_id: submitUserFormDto.session_id,
     });
 
     // Emit event
@@ -387,9 +425,8 @@ export class LandingPageService {
    * Get user form submission by ID
    */
   async findUserSubmissionById(submissionId: string) {
-    const submission = await this.landingPageRepository.findUserSubmissionById(
-      submissionId
-    );
+    const submission =
+      await this.landingPageRepository.findUserSubmissionById(submissionId);
     if (!submission) {
       throw new NotFoundException("Submission not found");
     }
@@ -403,7 +440,7 @@ export class LandingPageService {
     return this.landingPageRepository.findUserFormSubmissionsByLandingPageId(
       landingPageId,
       page,
-      limit
+      limit,
     );
   }
 }

@@ -29,6 +29,18 @@ export class UserFormSubmission extends BaseEntity {
   // Additional metadata if needed
   @Prop({ type: Object, default: {} })
   metadata?: Record<string, any>;
+
+  // UTM Tracking - traffic source reference
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "TrafficSource",
+    required: false,
+  })
+  traffic_source_id?: string;
+
+  // Session ID when form was submitted
+  @Prop({ required: false })
+  session_id?: string;
 }
 
 export type UserFormSubmissionDocument = HydratedDocument<UserFormSubmission>;

@@ -60,6 +60,14 @@ export class Payment extends BaseEntity {
 
   @Prop({ type: Object, default: {} })
   metadata?: Record<string, any>;
+
+  // UTM Tracking - traffic source reference (copied from user/submission)
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "TrafficSource",
+    required: false,
+  })
+  traffic_source_id?: string;
 }
 
 export type PaymentDocument = Payment & Document;

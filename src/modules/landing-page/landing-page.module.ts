@@ -11,6 +11,7 @@ import {
 import { RedisCacheModule } from "../../common/cache/redis-cache.module";
 import { CourseEnrollmentModule } from "../course-enrollment/course-enrollment.module";
 import { UserModule } from "../user/user.module";
+import { TrafficSourceModule } from "../traffic-source/traffic-source.module";
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { UserModule } from "../user/user.module";
     RedisCacheModule,
     CourseEnrollmentModule,
     UserModule,
+    TrafficSourceModule,
   ],
   controllers: [LandingPageController],
   providers: [LandingPageService, LandingPageRepository],
