@@ -14,7 +14,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
     @InjectModel(LandingPage.name) protected readonly model: Model<LandingPage>,
     @InjectModel(UserFormSubmission.name)
     private readonly userFormSubmissionModel: Model<UserFormSubmission>,
-    cacheService: RedisCacheService
+    cacheService: RedisCacheService,
   ) {
     super(cacheService);
   }
@@ -23,7 +23,11 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    * Find landing page by slug
    */
   async findBySlug(slug: string, useCache = true): Promise<LandingPage | null> {
-    return this.findOne({ slug } as any, { useCache, cacheTTL: 600 });
+    return this.findOne({ slug } as any, {
+      useCache,
+      cacheTTL: 600,
+      populate: ["course_id"],
+    });
   }
 
   /**
@@ -31,7 +35,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    */
   async findByCourseId(
     courseId: string,
-    useCache = true
+    useCache = true,
   ): Promise<LandingPage[]> {
     const query = { course_id: courseId } as any;
     const result = await this.paginate(query, {
@@ -50,6 +54,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
     return this.findOne({ slug, status: "published" } as any, {
       useCache: true,
       cacheTTL: 600,
+      populate: ["course_id"],
     });
   }
 
@@ -57,7 +62,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    * Save user form submission
    */
   async saveUserFormSubmission(
-    data: Partial<UserFormSubmission>
+    data: Partial<UserFormSubmission>,
   ): Promise<UserFormSubmission> {
     const submission = new this.userFormSubmissionModel(data);
     return submission.save();
@@ -67,7 +72,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    * Find user form submission by ID
    */
   async findUserSubmissionById(
-    submissionId: string
+    submissionId: string,
   ): Promise<UserFormSubmission | null> {
     return this.userFormSubmissionModel.findById(submissionId);
   }
@@ -77,7 +82,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    */
   async findUserSubmissionByEmail(
     email: string,
-    landingPageId: string
+    landingPageId: string,
   ): Promise<UserFormSubmission | null> {
     return this.userFormSubmissionModel.findOne({
       email,
@@ -91,7 +96,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    */
   async updateUserSubmission(
     submissionId: string,
-    data: Partial<UserFormSubmission>
+    data: Partial<UserFormSubmission>,
   ): Promise<UserFormSubmission> {
     const updated = await this.userFormSubmissionModel.findByIdAndUpdate(
       submissionId,
@@ -99,7 +104,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
         ...data,
         updated_at: new Date(),
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updated) {
@@ -115,7 +120,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
   async findUserFormSubmissionsByLandingPageId(
     landingPageId: string,
     page = 1,
-    limit = 50
+    limit = 50,
   ): Promise<{ data: UserFormSubmission[]; total: number }> {
     const skip = (page - 1) * limit;
     const query = { landing_page_id: landingPageId, is_deleted: false };

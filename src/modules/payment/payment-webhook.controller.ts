@@ -6,6 +6,8 @@ import {
   UnauthorizedException,
   BadRequestException,
   Logger,
+  UsePipes,
+  ValidationPipe,
 } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ConfigService } from "@nestjs/config";
@@ -21,7 +23,7 @@ import * as bcrypt from "bcryptjs";
 @Controller("payment/webhook")
 export class PaymentWebhookController {
   private readonly logger = new Logger(PaymentWebhookController.name);
-  private readonly sepayApiKey: string;
+  private readonly webhookSecretKey: string;
 
   constructor(
     private readonly configService: ConfigService,
@@ -29,46 +31,74 @@ export class PaymentWebhookController {
     private readonly courseEnrollmentService: CourseEnrollmentService,
     private readonly userService: UserService,
     private readonly landingPageService: LandingPageService,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventEmitter: EventEmitter2,
   ) {
-    this.sepayApiKey =
-      this.configService.get<string>("PAYMENT_SERVICE_SEPAY_KEY") || "";
+    this.webhookSecretKey =
+      this.configService.get<string>("PAYMENT_WEBHOOK_SECRET_KEY") || "";
   }
 
   @Post("sepay")
+  @UsePipes(
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }),
+  )
   async handleSepayWebhook(
     @Headers("authorization") authHeader: string,
-    @Body() webhookData: SepayWebhookDto
+    @Body() webhookData: SepayWebhookDto,
   ) {
     this.logger.log("📥 Received SePay webhook");
     this.logger.debug("Webhook data:", JSON.stringify(webhookData, null, 2));
 
-    // 1. Verify API Key
-    if (!authHeader || !authHeader.startsWith("Apikey ")) {
-      this.logger.error("❌ Missing or invalid authorization header");
-      throw new UnauthorizedException("Invalid authorization header");
+    // 1. Verify API Key / Secret (Case-insensitive prefix)
+    if (!authHeader) {
+      this.logger.error("❌ Missing authorization header");
+      throw new UnauthorizedException("Missing authorization header");
     }
 
-    const apiKey = authHeader.replace("Apikey ", "");
-    if (apiKey !== this.sepayApiKey) {
-      this.logger.error("❌ Invalid API key");
-      throw new UnauthorizedException("Invalid API key");
+    // Support both "Apikey <TOKEN>" and direct "<TOKEN>" with case-insensitive check
+    let apiKey = authHeader.trim();
+    if (apiKey.toLowerCase().startsWith("apikey ")) {
+      apiKey = apiKey.substring(7).trim();
     }
 
-    this.logger.log("✅ API key verified");
+    if (apiKey !== this.webhookSecretKey) {
+      this.logger.error(`❌ Invalid webhook key. Received: ${authHeader}`);
+      throw new UnauthorizedException("Invalid webhook authentication");
+    }
 
-    // 2. Find transaction by transfer code
-    const transferCode = webhookData.code?.trim().toUpperCase();
-    if (!transferCode || !transferCode.startsWith("ZLP")) {
-      this.logger.error("❌ Invalid transfer code:", transferCode);
-      throw new BadRequestException("Invalid transfer code");
+    this.logger.log("✅ Webhook authentication verified");
+
+    // 2. Extract transfer code (ZLP...)
+    let transferCode = webhookData.code?.trim().toUpperCase();
+    const systemCode =
+      this.configService.get<string>("PAYMENT_SYSTEM_CODE") || "ZLP";
+
+    // If code field is missing or not a ZLP code, try to extract from content
+    if (!transferCode || !transferCode.startsWith(systemCode)) {
+      this.logger.log(
+        `🔍 Code field '${transferCode}' not valid. Searching in content...`,
+      );
+      const content = webhookData.content || "";
+      // Regex to find ZLP followed by alphanumeric characters (at least 10 chars for ID)
+      const regex = new RegExp(`${systemCode}[A-Z0-9]{10,}`, "i");
+      const match = content.match(regex);
+
+      if (match) {
+        transferCode = match[0].toUpperCase();
+        this.logger.log(`🎯 Extracted code from content: ${transferCode}`);
+      }
+    }
+
+    if (!transferCode || !transferCode.startsWith(systemCode)) {
+      this.logger.error(
+        `❌ No valid transfer code found in code or content. Content: ${webhookData.content}`,
+      );
+      throw new BadRequestException("Invalid or missing transfer code");
     }
 
     let transaction;
     try {
-      transaction = await this.paymentTransactionService.getTransactionByCode(
-        transferCode
-      );
+      transaction =
+        await this.paymentTransactionService.getTransactionByCode(transferCode);
     } catch (error) {
       this.logger.error("❌ Transaction not found:", transferCode);
       throw new BadRequestException("Transaction not found");
@@ -79,7 +109,7 @@ export class PaymentWebhookController {
     // 3. Verify amount matches
     if (webhookData.transferAmount !== transaction.amount) {
       this.logger.error(
-        `❌ Amount mismatch: expected ${transaction.amount}, got ${webhookData.transferAmount}`
+        `❌ Amount mismatch: expected ${transaction.amount}, got ${webhookData.transferAmount}`,
       );
       throw new BadRequestException("Amount mismatch");
     }
@@ -99,7 +129,7 @@ export class PaymentWebhookController {
     await this.paymentTransactionService.updateTransactionStatus(
       transferCode,
       PaymentTransactionStatus.COMPLETED,
-      webhookData.id
+      webhookData.id.toString(),
     );
 
     this.logger.log("✅ Transaction status updated to COMPLETED");
@@ -110,7 +140,7 @@ export class PaymentWebhookController {
 
     // 7. Get submission details for event data
     const submission = await this.landingPageService.findUserSubmissionById(
-      transaction.user_form_submission_id
+      transaction.user_form_submission_id,
     );
 
     // 8. Create or find user account
@@ -123,7 +153,7 @@ export class PaymentWebhookController {
       await this.courseEnrollmentService.createEnrollment(
         user._id.toString(),
         transaction.course_id,
-        transaction._id.toString()
+        transaction._id.toString(),
       );
 
       this.logger.log("✅ Course enrollment created");
@@ -165,11 +195,11 @@ export class PaymentWebhookController {
    * Create or find user account based on submission email
    */
   private async createOrFindUser(
-    transaction: any
+    transaction: any,
   ): Promise<{ user: any; tempPassword?: string }> {
     // Get user form submission to extract email and name
     const submission = await this.landingPageService.findUserSubmissionById(
-      transaction.user_form_submission_id
+      transaction.user_form_submission_id,
     );
 
     const email = submission.email.toLowerCase().trim();
@@ -186,19 +216,34 @@ export class PaymentWebhookController {
     const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
     const password = `ZLP${randomDigits}`;
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user
+    // Create user - UserService.create will handle hashing
     user = await this.userService.create({
       email,
-      password: hashedPassword,
+      password: password,
       name: submission.name || "New User",
       role: UserRole.USER,
       must_change_password: true,
+      traffic_source_id: submission.traffic_source_id,
+      first_session_id: submission.session_id,
     } as any);
 
     this.logger.log(`✅ User created: ${email} with password: ${password}`);
+
+    // Emit registration events for new user
+    this.eventEmitter.emit("user.registered", {
+      userId: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      registeredAt: new Date(),
+    });
+
+    this.eventEmitter.emit("user.registered.no.purchase", {
+      userId: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      registeredAt: new Date(),
+      daysSinceRegistration: 0,
+    });
 
     return { user, tempPassword: password };
   }

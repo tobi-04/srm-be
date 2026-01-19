@@ -277,7 +277,7 @@ export class LandingPageService {
     const email = submitUserFormDto.email.toLowerCase().trim();
 
     // Check if user with this email is already enrolled in the course
-    let user = await this.userService.findByEmail(email);
+    const user = await this.userService.findByEmail(email);
     if (user) {
       const isEnrolled = await this.enrollmentService.isUserEnrolled(
         user._id.toString(),
@@ -297,7 +297,6 @@ export class LandingPageService {
         landingPage._id.toString(),
       );
 
-    let isNewUser = false;
     let trafficSourceId: string | undefined;
 
     // Handle traffic source if provided
@@ -321,26 +320,6 @@ export class LandingPageService {
       }
     }
 
-    if (!user) {
-      // Create a skeleton user account for automation
-      isNewUser = true;
-      const randomDigits = Math.floor(
-        100000 + Math.random() * 900000,
-      ).toString();
-      const password = `ZLP${randomDigits}`;
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      user = await this.userService.create({
-        email,
-        password: hashedPassword,
-        name: submitUserFormDto.name || "New User",
-        role: UserRole.USER,
-        must_change_password: true,
-        traffic_source_id: trafficSourceId,
-        first_session_id: submitUserFormDto.session_id,
-      } as any);
-    }
-
     if (existingSubmission) {
       // Update existing submission
       const updated = await this.landingPageRepository.updateUserSubmission(
@@ -357,25 +336,6 @@ export class LandingPageService {
           session_id: submitUserFormDto.session_id,
         },
       );
-
-      // Even if update, if it's "new" for the user system, we might want to emit
-      // But typically we emit on the FIRST submission
-      if (isNewUser) {
-        this.eventEmitter.emit("user.registered", {
-          userId: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          registeredAt: new Date(),
-        });
-
-        this.eventEmitter.emit("user.registered.no.purchase", {
-          userId: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          registeredAt: new Date(),
-          daysSinceRegistration: 0,
-        });
-      }
 
       return {
         success: true,
@@ -396,22 +356,6 @@ export class LandingPageService {
         : undefined,
       traffic_source_id: trafficSourceId,
       session_id: submitUserFormDto.session_id,
-    });
-
-    // Emit event
-    this.eventEmitter.emit("user.registered", {
-      userId: user._id.toString(),
-      email: user.email,
-      name: user.name,
-      registeredAt: new Date(),
-    });
-
-    this.eventEmitter.emit("user.registered.no.purchase", {
-      userId: user._id.toString(),
-      email: user.email,
-      name: user.name,
-      registeredAt: new Date(),
-      daysSinceRegistration: 0,
     });
 
     return {

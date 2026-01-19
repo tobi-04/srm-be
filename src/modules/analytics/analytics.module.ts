@@ -2,7 +2,10 @@ import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { AnalyticsService } from "./analytics.service";
 import { AnalyticsController } from "./analytics.controller";
-import { Payment, PaymentSchema } from "../payment/entities/payment.entity";
+import {
+  PaymentTransaction,
+  PaymentTransactionSchema,
+} from "../payment-transaction/entities/payment-transaction.entity";
 import { User, UserSchema } from "../user/entities/user.entity";
 import { Lesson, LessonSchema } from "../lesson/entities/lesson.entity";
 import {
@@ -21,7 +24,7 @@ import {
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: Payment.name, schema: PaymentSchema },
+      { name: PaymentTransaction.name, schema: PaymentTransactionSchema },
       { name: User.name, schema: UserSchema },
       { name: Lesson.name, schema: LessonSchema },
       { name: LessonProgress.name, schema: LessonProgressSchema },

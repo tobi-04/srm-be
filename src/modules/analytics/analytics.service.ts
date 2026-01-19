@@ -2,10 +2,10 @@ import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import {
-  Payment,
-  PaymentDocument,
-  PaymentStatus,
-} from "../payment/entities/payment.entity";
+  PaymentTransaction,
+  PaymentTransactionDocument,
+  PaymentTransactionStatus,
+} from "../payment-transaction/entities/payment-transaction.entity";
 import { User, UserRole, UserDocument } from "../user/entities/user.entity";
 import { Lesson, LessonDocument } from "../lesson/entities/lesson.entity";
 import {
@@ -27,7 +27,8 @@ import { Types } from "mongoose";
 @Injectable()
 export class AnalyticsService {
   constructor(
-    @InjectModel(Payment.name) private paymentModel: Model<PaymentDocument>,
+    @InjectModel(PaymentTransaction.name)
+    private paymentTransactionModel: Model<PaymentTransactionDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Lesson.name) private lessonModel: Model<LessonDocument>,
     @InjectModel(LessonProgress.name)
@@ -44,26 +45,26 @@ export class AnalyticsService {
     const sixtyDaysAgo = now.subtract(60, "day").toDate();
 
     // 1. Total Revenue (Last 30 days vs Previous 30 days)
-    const currentRevenue = await this.paymentModel.aggregate([
+    const currentRevenue = await this.paymentTransactionModel.aggregate([
       {
         $match: {
-          status: PaymentStatus.COMPLETED,
+          status: PaymentTransactionStatus.COMPLETED,
           paid_at: { $gte: thirtyDaysAgo },
           is_deleted: false,
         },
       },
-      { $group: { _id: null, total: { $sum: "$total_amount" } } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
 
-    const prevRevenue = await this.paymentModel.aggregate([
+    const prevRevenue = await this.paymentTransactionModel.aggregate([
       {
         $match: {
-          status: PaymentStatus.COMPLETED,
+          status: PaymentTransactionStatus.COMPLETED,
           paid_at: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
           is_deleted: false,
         },
       },
-      { $group: { _id: null, total: { $sum: "$total_amount" } } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
 
     const currentRevValue = currentRevenue[0]?.total || 0;
@@ -128,10 +129,10 @@ export class AnalyticsService {
     const now = dayjs();
     const startDate = now.subtract(days, "day").startOf("day").toDate();
 
-    const trend = await this.paymentModel.aggregate([
+    const trend = await this.paymentTransactionModel.aggregate([
       {
         $match: {
-          status: PaymentStatus.COMPLETED,
+          status: PaymentTransactionStatus.COMPLETED,
           paid_at: { $gte: startDate },
           is_deleted: false,
         },
@@ -139,7 +140,7 @@ export class AnalyticsService {
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$paid_at" } },
-          amount: { $sum: "$total_amount" },
+          amount: { $sum: "$amount" },
         },
       },
       { $sort: { _id: 1 } },
@@ -183,12 +184,23 @@ export class AnalyticsService {
   }
 
   async getRecentPayments() {
-    return this.paymentModel
-      .find({ status: PaymentStatus.COMPLETED, is_deleted: false })
+    const transactions = await this.paymentTransactionModel
+      .find({ status: PaymentTransactionStatus.COMPLETED, is_deleted: false })
       .sort({ paid_at: -1 })
       .limit(8)
-      .populate("user_submission_id")
-      .populate("landing_page_id");
+      .populate("user_form_submission_id")
+      .populate("course_id");
+
+    // Map to the format expected by the frontend
+    return transactions.map((tx) => {
+      const obj = tx.toObject();
+      return {
+        ...obj,
+        total_amount: obj.amount,
+        user_submission_id: obj.user_form_submission_id,
+        landing_page_id: obj.course_id,
+      };
+    });
   }
 
   async getProgressSummary() {
