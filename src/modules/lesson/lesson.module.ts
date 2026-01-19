@@ -23,6 +23,10 @@ import {
 } from "./entities/lesson-progress.entity";
 import { RedisCacheModule } from "../../common/cache/redis-cache.module";
 import { R2Module } from "../../common/storage/r2.module";
+import {
+  CourseEnrollment,
+  CourseEnrollmentSchema,
+} from "../course-enrollment/entities/course-enrollment.entity";
 
 @Module({
   imports: [
@@ -33,6 +37,7 @@ import { R2Module } from "../../common/storage/r2.module";
       { name: LessonCommentReaction.name, schema: LessonCommentReactionSchema },
       { name: LessonNote.name, schema: LessonNoteSchema },
       { name: LessonProgress.name, schema: LessonProgressSchema },
+      { name: CourseEnrollment.name, schema: CourseEnrollmentSchema },
     ]),
     RedisCacheModule,
     R2Module,

@@ -7,11 +7,23 @@ import {
   LessonProgressStatus,
 } from "./entities/lesson-progress.entity";
 
+import { Lesson, LessonDocument } from "./entities/lesson.entity";
+import {
+  CourseEnrollment,
+  CourseEnrollmentDocument,
+} from "../course-enrollment/entities/course-enrollment.entity";
+import { RedisCacheService } from "../../common/cache/redis-cache.service";
+
 @Injectable()
 export class LessonProgressService {
   constructor(
     @InjectModel(LessonProgress.name)
     private lessonProgressModel: Model<LessonProgressDocument>,
+    @InjectModel(Lesson.name)
+    private lessonModel: Model<LessonDocument>,
+    @InjectModel(CourseEnrollment.name)
+    private enrollmentModel: Model<CourseEnrollmentDocument>,
+    private cacheService: RedisCacheService,
   ) {}
 
   /**
@@ -172,11 +184,69 @@ export class LessonProgressService {
       updateObj.completed_at = new Date();
     }
 
-    return this.lessonProgressModel.findOneAndUpdate(
+    const result = await this.lessonProgressModel.findOneAndUpdate(
       { _id: progress._id },
       { $set: updateObj },
       { new: true },
     );
+
+    if (result) {
+      await this.updateCourseEnrollmentProgress(
+        userId,
+        progress.course_id.toString(),
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Update CourseEnrollment progress fields (O(1) optimization)
+   */
+  private async updateCourseEnrollmentProgress(
+    userId: string,
+    courseId: string,
+  ) {
+    // Count total published lessons in course
+    const totalLessons = await this.lessonModel.countDocuments({
+      course_id: courseId,
+      status: "published",
+      is_deleted: false,
+    });
+
+    // Count completed lessons for user
+    const completedLessonsCount = await this.lessonProgressModel.countDocuments(
+      {
+        user_id: userId,
+        course_id: courseId,
+        status: LessonProgressStatus.COMPLETED,
+        is_deleted: false,
+      },
+    );
+
+    // Find current lesson (last updated or first incomplete)
+    const lastActive = await this.lessonProgressModel
+      .findOne({ user_id: userId, course_id: courseId, is_deleted: false })
+      .sort({ updated_at: -1 })
+      .select("lesson_id");
+
+    const progressPercent =
+      totalLessons > 0 ? (completedLessonsCount / totalLessons) * 100 : 0;
+
+    await this.enrollmentModel.updateOne(
+      { user_id: userId, course_id: courseId },
+      {
+        $set: {
+          progress_percent: Math.round(progressPercent * 10) / 10,
+          completed_lessons_count: completedLessonsCount,
+          current_lesson_id: lastActive?.lesson_id,
+          last_activity_at: new Date(),
+        },
+      },
+    );
+
+    // Invalidate analytics cache
+    await this.cacheService.delByPattern("analytics:*");
   }
 
   /**
@@ -200,6 +270,7 @@ export class LessonProgressService {
           },
         },
       );
+      await this.updateCourseEnrollmentProgress(userId, courseId);
     }
 
     return this.lessonProgressModel.findById(progress._id) as any;
@@ -212,7 +283,7 @@ export class LessonProgressService {
     userId: string,
     lessonId: string,
   ): Promise<LessonProgress | null> {
-    return this.lessonProgressModel.findOneAndUpdate(
+    const result = await this.lessonProgressModel.findOneAndUpdate(
       { user_id: userId, lesson_id: lessonId, is_deleted: false },
       {
         $set: {
@@ -223,6 +294,15 @@ export class LessonProgressService {
       },
       { new: true },
     );
+
+    if (result) {
+      await this.updateCourseEnrollmentProgress(
+        userId,
+        result.course_id.toString(),
+      );
+    }
+
+    return result;
   }
 
   /**

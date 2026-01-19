@@ -19,6 +19,7 @@ import { CourseEnrollmentModule } from "./modules/course-enrollment/course-enrol
 import { EmailAutomationModule } from "./modules/email-automation/email-automation.module";
 import { TrafficSourceModule } from "./modules/traffic-source/traffic-source.module";
 import { SessionModule } from "./modules/session/session.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
 
 @Module({
@@ -51,6 +52,7 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
     EmailAutomationModule,
     TrafficSourceModule,
     SessionModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
