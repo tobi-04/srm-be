@@ -38,6 +38,10 @@ export class TrafficSourceDto {
   referrer?: string;
 
   @IsOptional()
+  @IsDateString()
+  first_visit_at?: string;
+
+  @IsOptional()
   @IsString()
   session_id?: string;
 }

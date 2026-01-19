@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsNotEmpty, IsIP, IsUrl } from "class-validator";
+import {
+  IsString,
+  IsOptional,
+  IsNotEmpty,
+  IsIP,
+  IsUrl,
+  IsDateString,
+} from "class-validator";
 
 export class CreateTrafficSourceDto {
   @IsString()
@@ -28,6 +35,10 @@ export class CreateTrafficSourceDto {
   @IsString()
   @IsOptional()
   referrer?: string;
+
+  @IsDateString()
+  @IsOptional()
+  first_visit_at?: string;
 
   @IsString()
   @IsNotEmpty()

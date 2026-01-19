@@ -18,10 +18,24 @@ export class TrafficSourceService {
     // Check if traffic source with this session_id already exists
     const existing = await this.trafficSourceRepository.findBySessionId(
       createTrafficSourceDto.session_id,
+      createTrafficSourceDto.landing_page,
     );
 
     if (existing) {
-      // Return existing instead of creating duplicate (first-touch attribution)
+      // If UTM source is provided, update the existing record (Last Touch within this context)
+      if (createTrafficSourceDto.utm_source) {
+        return this.trafficSourceRepository.updateById(
+          existing._id.toString(),
+          {
+            utm_source: createTrafficSourceDto.utm_source,
+            utm_medium: createTrafficSourceDto.utm_medium,
+            utm_campaign: createTrafficSourceDto.utm_campaign,
+            utm_content: createTrafficSourceDto.utm_content,
+            utm_term: createTrafficSourceDto.utm_term,
+            referrer: createTrafficSourceDto.referrer,
+          },
+        );
+      }
       return existing;
     }
 
@@ -34,7 +48,9 @@ export class TrafficSourceService {
 
     return this.trafficSourceRepository.create({
       ...createTrafficSourceDto,
-      first_visit_at: new Date(),
+      first_visit_at: createTrafficSourceDto.first_visit_at
+        ? new Date(createTrafficSourceDto.first_visit_at)
+        : new Date(),
     } as any);
   }
 

@@ -28,7 +28,7 @@ export class TrafficSource extends BaseEntity {
   @Prop({ type: Date, default: Date.now })
   first_visit_at: Date; // timestamp of first visit
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true })
   session_id: string; // UUID of first session
 
   @Prop({ required: false })
@@ -42,7 +42,7 @@ export type TrafficSourceDocument = HydratedDocument<TrafficSource>;
 export const TrafficSourceSchema = SchemaFactory.createForClass(TrafficSource);
 
 // Add indexes for efficient querying
-TrafficSourceSchema.index({ session_id: 1 }, { unique: true });
+TrafficSourceSchema.index({ session_id: 1, landing_page: 1 }, { unique: true });
 TrafficSourceSchema.index({ utm_source: 1, utm_campaign: 1 });
 TrafficSourceSchema.index({ created_at: -1 });
 TrafficSourceSchema.index({ is_deleted: 1 });

@@ -333,7 +333,10 @@ export class LandingPageService {
             ? new Date(submitUserFormDto.birthday)
             : undefined,
           landing_page_id: landingPage._id.toString(),
-          session_id: submitUserFormDto.session_id,
+          traffic_source_id:
+            trafficSourceId || existingSubmission.traffic_source_id,
+          session_id:
+            submitUserFormDto.session_id || existingSubmission.session_id,
         },
       );
 

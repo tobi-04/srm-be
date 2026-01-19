@@ -18,13 +18,18 @@ export class TrafficSourceRepository extends BaseRepository<TrafficSource> {
   }
 
   /**
-   * Find traffic source by session ID
+   * Find traffic source by session ID and optionally landing page
    */
   async findBySessionId(
     sessionId: string,
+    landingPage?: string,
     useCache = true,
   ): Promise<TrafficSource | null> {
-    return this.findOne({ session_id: sessionId } as any, {
+    const query: any = { session_id: sessionId };
+    if (landingPage) {
+      query.landing_page = landingPage;
+    }
+    return this.findOne(query, {
       useCache,
       cacheTTL: 600,
     });
