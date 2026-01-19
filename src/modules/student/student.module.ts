@@ -9,6 +9,10 @@ import {
   PaymentTransaction,
   PaymentTransactionSchema,
 } from "../payment-transaction/entities/payment-transaction.entity";
+import {
+  LessonProgress,
+  LessonProgressSchema,
+} from "../lesson/entities/lesson-progress.entity";
 import { CourseEnrollmentModule } from "../course-enrollment/course-enrollment.module";
 import { RedisCacheModule } from "../../common/cache/redis-cache.module";
 
@@ -19,6 +23,7 @@ import { RedisCacheModule } from "../../common/cache/redis-cache.module";
       { name: Lesson.name, schema: LessonSchema },
       { name: User.name, schema: UserSchema },
       { name: PaymentTransaction.name, schema: PaymentTransactionSchema },
+      { name: LessonProgress.name, schema: LessonProgressSchema },
     ]),
     CourseEnrollmentModule,
     RedisCacheModule,

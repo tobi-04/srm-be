@@ -23,6 +23,11 @@ import {
   PaymentTransaction,
   PaymentTransactionDocument,
 } from "../payment-transaction/entities/payment-transaction.entity";
+import {
+  LessonProgress,
+  LessonProgressDocument,
+  LessonProgressStatus,
+} from "../lesson/entities/lesson-progress.entity";
 
 @Injectable()
 export class StudentService {
@@ -35,6 +40,8 @@ export class StudentService {
     private userModel: Model<UserDocument>,
     @InjectModel(PaymentTransaction.name)
     private paymentTransactionModel: Model<PaymentTransactionDocument>,
+    @InjectModel(LessonProgress.name)
+    private lessonProgressModel: Model<LessonProgressDocument>,
     private courseEnrollmentService: CourseEnrollmentService,
   ) {}
 
@@ -84,8 +91,13 @@ export class StudentService {
           is_deleted: false,
         });
 
-        // TODO: Get completed lessons from progress tracking
-        const completedLessons = 0;
+        // Get completed lessons from progress tracking
+        const completedLessons = await this.lessonProgressModel.countDocuments({
+          user_id: studentId,
+          course_id: course._id,
+          status: LessonProgressStatus.COMPLETED,
+        });
+
         const progressPercent =
           totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
 
@@ -181,8 +193,13 @@ export class StudentService {
           is_deleted: false,
         });
 
-        // TODO: Get completed lessons from progress tracking
-        const completedLessons = 0;
+        // Get completed lessons from progress tracking
+        const completedLessons = await this.lessonProgressModel.countDocuments({
+          user_id: studentId,
+          course_id: course._id,
+          status: LessonProgressStatus.COMPLETED,
+        });
+
         const progressPercent =
           totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
 
