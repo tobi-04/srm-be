@@ -38,6 +38,12 @@ export class SalerCourseResponse {
 
   @ApiProperty({ description: "Referral link with saler code" })
   referral_link: string;
+
+  @ApiProperty({ description: "Saler referral code" })
+  referral_code: string;
+
+  @ApiProperty({ description: "Commission rate percentage" })
+  commission_rate: number;
 }
 
 export class SalerCoursesResponse {

@@ -14,6 +14,7 @@ import { PaginationDto } from "../../common/dto/pagination.dto";
 import { CourseEnrollmentService } from "../course-enrollment/course-enrollment.service";
 import { UserService } from "../user/user.service";
 import { TrafficSourceService } from "../traffic-source/traffic-source.service";
+import { SalerDetailsService } from "../saler-details/saler-details.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { UserRole } from "../user/entities/user.entity";
 import * as bcrypt from "bcryptjs";
@@ -25,6 +26,7 @@ export class LandingPageService {
     private readonly enrollmentService: CourseEnrollmentService,
     private readonly userService: UserService,
     private readonly trafficSourceService: TrafficSourceService,
+    private readonly salerDetailsService: SalerDetailsService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -174,7 +176,26 @@ export class LandingPageService {
   }
 
   async findBySlug(slug: string, isAdmin: boolean = false) {
-    const landingPage = await this.landingPageRepository.findBySlug(slug);
+    let landingPage = await this.landingPageRepository.findBySlug(slug);
+
+    // If not found by slug, try by ID if it's a valid ObjectId
+    if (!landingPage && /^[0-9a-fA-F]{24}$/.test(slug)) {
+      landingPage = await this.landingPageRepository.findById(slug);
+    }
+
+    // If still not found, try finding a published landing page by course_id
+    if (!landingPage && /^[0-9a-fA-F]{24}$/.test(slug)) {
+      const landingPages = await this.landingPageRepository.findByCourseId(
+        slug,
+        true,
+      );
+      if (landingPages && landingPages.length > 0) {
+        // Find published one if exists, otherwise take first
+        landingPage =
+          landingPages.find((lp) => lp.status === "published") ||
+          landingPages[0];
+      }
+    }
 
     if (!landingPage) {
       throw new NotFoundException("Landing page not found");
@@ -265,9 +286,8 @@ export class LandingPageService {
    * Submit user form data - check for existing email and update if exists
    */
   async submitUserForm(slug: string, submitUserFormDto: SubmitUserFormDto) {
-    // Find the landing page by slug
-    const landingPage =
-      await this.landingPageRepository.findPublishedBySlug(slug);
+    // Find the landing page by slug or ID
+    const landingPage = await this.findBySlug(slug, false);
 
     if (!landingPage) {
       throw new NotFoundException("Landing page not found");
@@ -320,6 +340,35 @@ export class LandingPageService {
       }
     }
 
+    let salerId: string | undefined;
+
+    // Lookup saler if referral code is provided
+    if (submitUserFormDto.referral_code) {
+      try {
+        // Try looking up by User ID first (new format)
+        if (/^[0-9a-fA-F]{24}$/.test(submitUserFormDto.referral_code)) {
+          const salerDetails = await this.salerDetailsService.getSalerDetails(
+            submitUserFormDto.referral_code,
+          );
+          if (salerDetails) {
+            salerId = salerDetails.user_id.toString();
+          }
+        }
+
+        // If not found/not ID, fallback to code_saler (legacy)
+        if (!salerId) {
+          const salerDetails = await this.salerDetailsService.findByCodeSaler(
+            submitUserFormDto.referral_code,
+          );
+          if (salerDetails) {
+            salerId = salerDetails.user_id.toString();
+          }
+        }
+      } catch (error) {
+        console.error("Failed to lookup saler by referral code:", error);
+      }
+    }
+
     if (existingSubmission) {
       // Update existing submission
       const updated = await this.landingPageRepository.updateUserSubmission(
@@ -337,6 +386,9 @@ export class LandingPageService {
             trafficSourceId || existingSubmission.traffic_source_id,
           session_id:
             submitUserFormDto.session_id || existingSubmission.session_id,
+          saler_id: salerId || existingSubmission.saler_id,
+          referral_code:
+            submitUserFormDto.referral_code || existingSubmission.referral_code,
         },
       );
 
@@ -359,6 +411,8 @@ export class LandingPageService {
         : undefined,
       traffic_source_id: trafficSourceId,
       session_id: submitUserFormDto.session_id,
+      saler_id: salerId,
+      referral_code: submitUserFormDto.referral_code,
     });
 
     return {

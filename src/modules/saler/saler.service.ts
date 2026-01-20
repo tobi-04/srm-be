@@ -138,7 +138,8 @@ export class SalerService {
           specificCommission?.commission_rate ??
           salerDetails.default_commission_rate ??
           0,
-        referral_link: `${domain}/${course.slug}?ref=${salerDetails.code_saler}`,
+        referral_link: `${domain}/landing/${course._id}?ref=${salerDetails.user_id}`,
+        referral_code: salerDetails.user_id.toString(),
       };
     });
 

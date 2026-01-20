@@ -76,4 +76,8 @@ export class SubmitUserFormDto {
   @IsOptional()
   @IsString()
   session_id?: string;
+
+  @IsOptional()
+  @IsString()
+  referral_code?: string;
 }

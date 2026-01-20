@@ -41,6 +41,17 @@ export class UserFormSubmission extends BaseEntity {
   // Session ID when form was submitted
   @Prop({ required: false })
   session_id?: string;
+
+  // Saler attribution
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "User",
+    required: false,
+  })
+  saler_id?: string;
+
+  @Prop({ required: false })
+  referral_code?: string;
 }
 
 export type UserFormSubmissionDocument = HydratedDocument<UserFormSubmission>;

@@ -201,4 +201,11 @@ export class SalerDetailsService {
 
     return updated;
   }
+
+  /**
+   * Find saler details by code saler
+   */
+  async findByCodeSaler(code: string): Promise<SalerDetails | null> {
+    return this.salerDetailsRepository.findByCodeSaler(code);
+  }
 }

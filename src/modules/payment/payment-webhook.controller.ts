@@ -15,6 +15,8 @@ import { PaymentTransactionService } from "../payment-transaction/payment-transa
 import { CourseEnrollmentService } from "../course-enrollment/course-enrollment.service";
 import { UserService } from "../user/user.service";
 import { LandingPageService } from "../landing-page/landing-page.service";
+import { OrderService } from "../order/order.service";
+import { OrderStatus } from "../order/entities/order.entity";
 import { SepayWebhookDto } from "./dto/sepay-webhook.dto";
 import { PaymentTransactionStatus } from "../payment-transaction/entities/payment-transaction.entity";
 import { UserRole } from "../user/entities/user.entity";
@@ -31,6 +33,7 @@ export class PaymentWebhookController {
     private readonly courseEnrollmentService: CourseEnrollmentService,
     private readonly userService: UserService,
     private readonly landingPageService: LandingPageService,
+    private readonly orderService: OrderService,
     private readonly eventEmitter: EventEmitter2,
   ) {
     this.webhookSecretKey =
@@ -157,6 +160,33 @@ export class PaymentWebhookController {
       );
 
       this.logger.log("✅ Course enrollment created");
+
+      // 9.5 Create and mark Order as PAID for saler attribution & commission
+      try {
+        const order = await this.orderService.createOrder({
+          saler_id: submission.saler_id,
+          course_id: transaction.course_id,
+          user_submission_id: submission._id.toString(),
+          amount: transaction.amount,
+          status: OrderStatus.PENDING,
+          metadata: {
+            ...transaction.metadata,
+            transaction_id: transaction._id.toString(),
+          },
+        });
+
+        await this.orderService.updateOrderStatus(
+          order._id.toString(),
+          OrderStatus.PAID,
+          {
+            paid_at: new Date(),
+          },
+        );
+        this.logger.log(`✅ Order created and marked as PAID: ${order._id}`);
+      } catch (orderError) {
+        this.logger.error("❌ Failed to create/update order:", orderError);
+        // Don't throw - enrollment succeeded, order is for tracking
+      }
 
       // Emit event for email automation
       this.eventEmitter.emit("course.purchased", {

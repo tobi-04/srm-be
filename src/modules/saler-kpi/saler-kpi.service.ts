@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { OnEvent } from "@nestjs/event-emitter";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { SalerKPI, SalerKPIDocument } from "./entities/saler-kpi.entity";
@@ -7,6 +8,7 @@ import {
   SalerDetailsDocument,
 } from "../saler-details/entities/saler-details.entity";
 import { OrderRepository } from "../order/order.repository";
+import { Order } from "../order/entities/order.entity";
 import dayjs from "dayjs";
 
 @Injectable()
@@ -18,6 +20,17 @@ export class SalerKPIService {
     private salerDetailsModel: Model<SalerDetailsDocument>,
     private orderRepository: OrderRepository,
   ) {}
+
+  /**
+   * Refresh KPI when an order is paid
+   */
+  @OnEvent("order.paid")
+  async handleOrderPaid(order: Order) {
+    if (!order.saler_id) return;
+
+    const period = dayjs(order.paid_at || new Date()).format("YYYY-MM");
+    await this.refreshKPI(order.saler_id, period);
+  }
 
   /**
    * Get KPI for a specific period
