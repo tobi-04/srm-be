@@ -299,6 +299,13 @@ export class LandingPageService {
     // Check if user with this email is already enrolled in the course
     const user = await this.userService.findByEmail(email);
     if (user) {
+      // Check if user has a non-student role (Admin or Sale)
+      if (user.role !== "user") {
+        throw new BadRequestException(
+          "Tài khoản của bạn không có quyền mua khóa học. Vui lòng sử dụng tài khoản học viên.",
+        );
+      }
+
       const isEnrolled = await this.enrollmentService.isUserEnrolled(
         user._id.toString(),
         landingPage.course_id,
