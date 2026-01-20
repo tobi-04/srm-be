@@ -182,8 +182,6 @@ export class OrderRepository {
 
     if (status === OrderStatus.PAID) {
       updateData.paid_at = new Date();
-    } else if (status === OrderStatus.REFUND) {
-      updateData.refunded_at = new Date();
     }
 
     if (additionalData) {

@@ -38,8 +38,6 @@ export class OrderService {
     // Emit events for downstream processing
     if (status === OrderStatus.PAID) {
       this.eventEmitter.emit("order.paid", order);
-    } else if (status === OrderStatus.REFUND) {
-      this.eventEmitter.emit("order.refunded", order);
     }
 
     return order;

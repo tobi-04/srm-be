@@ -5,7 +5,6 @@ import { BaseEntity } from "../../../common/entities/base.entity";
 export enum OrderStatus {
   PENDING = "pending",
   PAID = "paid",
-  REFUND = "refund",
 }
 
 @Schema({ collection: "orders", timestamps: false })
@@ -57,10 +56,6 @@ export class Order extends BaseEntity {
   // Paid timestamp
   @Prop({ type: Date, required: false })
   paid_at?: Date;
-
-  // Refunded timestamp
-  @Prop({ type: Date, required: false })
-  refunded_at?: Date;
 
   // Additional metadata
   @Prop({ type: Object, default: {} })
