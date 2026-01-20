@@ -27,7 +27,6 @@ import {
   StudentDashboardResponse,
   StudentCoursesResponse,
   StudentCourseDetailResponse,
-  StudentProgressResponse,
 } from "./dto/student-response.dto";
 import { UpdateProfileDto } from "./dto/student-profile.dto";
 
@@ -87,21 +86,6 @@ export class StudentController {
   ): Promise<StudentCourseDetailResponse> {
     const studentId = req.user.userId;
     return this.studentService.getCourseDetail(studentId, slug);
-  }
-
-  @Get("progress")
-  @UseInterceptors(CacheInterceptor)
-  @CacheTTL(300) // 5 minutes
-  @ApiOperation({ summary: "Get overall progress" })
-  @ApiResponse({
-    status: 200,
-    description: "Progress data",
-    type: StudentProgressResponse,
-  })
-  @HttpCode(HttpStatus.OK)
-  async getProgress(@Req() req: any): Promise<StudentProgressResponse> {
-    const studentId = req.user.userId;
-    return this.studentService.getProgress(studentId);
   }
 
   @Get("profile")

@@ -21,6 +21,11 @@ import { TrafficSourceModule } from "./modules/traffic-source/traffic-source.mod
 import { SessionModule } from "./modules/session/session.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { StudentModule } from "./modules/student/student.module";
+import { SalerDetailsModule } from "./modules/saler-details/saler-details.module";
+import { OrderModule } from "./modules/order/order.module";
+import { CommissionModule } from "./modules/commission/commission.module";
+import { SalerKPIModule } from "./modules/saler-kpi/saler-kpi.module";
+import { SalerModule } from "./modules/saler/saler.module";
 import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
 
 @Module({
@@ -55,6 +60,11 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
     SessionModule,
     AnalyticsModule,
     StudentModule,
+    SalerDetailsModule,
+    OrderModule,
+    CommissionModule,
+    SalerKPIModule,
+    SalerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

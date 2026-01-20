@@ -11,7 +11,6 @@ import {
   StudentDashboardResponse,
   StudentCoursesResponse,
   StudentCourseDto,
-  StudentProgressResponse,
   StudentCourseDetailResponse,
   StudentLessonDto,
 } from "./dto/student-response.dto";
@@ -28,6 +27,10 @@ import {
   LessonProgressDocument,
   LessonProgressStatus,
 } from "../lesson/entities/lesson-progress.entity";
+import {
+  UserFormSubmission,
+  UserFormSubmissionDocument,
+} from "../landing-page/entities/user-form-submission.entity";
 
 @Injectable()
 export class StudentService {
@@ -42,6 +45,8 @@ export class StudentService {
     private paymentTransactionModel: Model<PaymentTransactionDocument>,
     @InjectModel(LessonProgress.name)
     private lessonProgressModel: Model<LessonProgressDocument>,
+    @InjectModel(UserFormSubmission.name)
+    private userFormSubmissionModel: Model<UserFormSubmissionDocument>,
     private courseEnrollmentService: CourseEnrollmentService,
   ) {}
 
@@ -335,41 +340,6 @@ export class StudentService {
   }
 
   /**
-   * Get student's overall progress
-   * Cache: 5 minutes
-   */
-  async getProgress(studentId: string): Promise<StudentProgressResponse> {
-    const coursesResponse = await this.getCourses(studentId, {
-      page: 1,
-      limit: 100,
-      status: CourseStatusFilter.ALL,
-    });
-
-    const courses = coursesResponse.data;
-    const totalCourses = courses.length;
-    const completedCourses = courses.filter((c) => c.is_completed).length;
-    const completionRate =
-      totalCourses > 0 ? (completedCourses / totalCourses) * 100 : 0;
-
-    const totalLessons = courses.reduce((sum, c) => sum + c.total_lessons, 0);
-    const completedLessons = courses.reduce(
-      (sum, c) => sum + c.completed_lessons,
-      0,
-    );
-
-    return {
-      courses,
-      overall_progress: {
-        total_courses: totalCourses,
-        completed_courses: completedCourses,
-        completion_rate: completionRate,
-        total_lessons: totalLessons,
-        completed_lessons: completedLessons,
-      },
-    };
-  }
-
-  /**
    * Get student profile
    */
   async getProfile(studentId: string): Promise<any> {
@@ -417,8 +387,41 @@ export class StudentService {
   async getOrders(studentId: string, query: StudentOrdersQuery): Promise<any> {
     const { page = 1, limit = 20, status } = query;
 
+    // First, get the user's email
+    const user = await this.userModel
+      .findById(studentId)
+      .select("email")
+      .lean();
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    // Find all user form submissions with this email
+    const userFormSubmissions = await this.userFormSubmissionModel
+      .find({ email: user.email, is_deleted: false })
+      .select("_id")
+      .lean();
+
+    const submissionIds = userFormSubmissions.map(
+      (submission) => submission._id,
+    );
+
+    if (submissionIds.length === 0) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+      };
+    }
+
+    // Build filter for payment transactions
     const filter: any = {
-      user_id: studentId,
+      user_form_submission_id: { $in: submissionIds },
       is_deleted: false,
     };
 
@@ -431,8 +434,8 @@ export class StudentService {
 
     const orders = await this.paymentTransactionModel
       .find(filter)
-      .populate("landing_page_id", "title")
-      .select("landing_page_id total_amount status paid_at created_at")
+      .populate("course_id", "title")
+      .select("course_id amount status paid_at created_at")
       .sort({ created_at: -1 })
       .skip((page - 1) * limit)
       .limit(limit)

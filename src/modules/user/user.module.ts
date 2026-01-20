@@ -8,6 +8,7 @@ import {
 import { UserController } from "./user.controller";
 import { UserService } from "./user.service";
 import { UserRepository } from "./user.repository";
+import { SalerDetailsModule } from "../saler-details/saler-details.module";
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { UserRepository } from "./user.repository";
       { name: User.name, schema: UserSchema },
       { name: CourseEnrollment.name, schema: CourseEnrollmentSchema },
     ]),
+    SalerDetailsModule,
   ],
   controllers: [UserController],
   providers: [UserService, UserRepository],

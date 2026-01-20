@@ -13,6 +13,10 @@ import {
   LessonProgress,
   LessonProgressSchema,
 } from "../lesson/entities/lesson-progress.entity";
+import {
+  UserFormSubmission,
+  UserFormSubmissionSchema,
+} from "../landing-page/entities/user-form-submission.entity";
 import { CourseEnrollmentModule } from "../course-enrollment/course-enrollment.module";
 import { RedisCacheModule } from "../../common/cache/redis-cache.module";
 
@@ -24,6 +28,7 @@ import { RedisCacheModule } from "../../common/cache/redis-cache.module";
       { name: User.name, schema: UserSchema },
       { name: PaymentTransaction.name, schema: PaymentTransactionSchema },
       { name: LessonProgress.name, schema: LessonProgressSchema },
+      { name: UserFormSubmission.name, schema: UserFormSubmissionSchema },
     ]),
     CourseEnrollmentModule,
     RedisCacheModule,
