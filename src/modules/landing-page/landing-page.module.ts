@@ -8,6 +8,7 @@ import {
   UserFormSubmission,
   UserFormSubmissionSchema,
 } from "./entities/user-form-submission.entity";
+import { Course, CourseSchema } from "../course/entities/course.entity";
 import { RedisCacheModule } from "../../common/cache/redis-cache.module";
 import { CourseEnrollmentModule } from "../course-enrollment/course-enrollment.module";
 import { UserModule } from "../user/user.module";
@@ -19,6 +20,7 @@ import { SalerDetailsModule } from "../saler-details/saler-details.module";
     MongooseModule.forFeature([
       { name: LandingPage.name, schema: LandingPageSchema },
       { name: UserFormSubmission.name, schema: UserFormSubmissionSchema },
+      { name: Course.name, schema: CourseSchema },
     ]),
     RedisCacheModule,
     CourseEnrollmentModule,

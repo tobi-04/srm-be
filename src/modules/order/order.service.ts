@@ -92,4 +92,11 @@ export class OrderService {
   async getDailyRevenueChart(salerId: string, days: number = 30) {
     return this.orderRepository.getDailyRevenueChart(salerId, days);
   }
+
+  /**
+   * Find orders by submission IDs
+   */
+  async findBySubmissionIds(submissionIds: string[]) {
+    return this.orderRepository.findBySubmissionIds(submissionIds);
+  }
 }

@@ -5,6 +5,7 @@ import { OrderService } from "../order/order.service";
 import { OrderStatus } from "../order/entities/order.entity";
 import { CommissionService } from "../commission/commission.service";
 import { SalerKPIService } from "../saler-kpi/saler-kpi.service";
+import { LandingPageService } from "../landing-page/landing-page.service";
 import { SalerStudentsQuery } from "./dto/saler-students-query.dto";
 import {
   SalerDetails,
@@ -25,6 +26,7 @@ export class SalerService {
     private readonly orderService: OrderService,
     private readonly commissionService: CommissionService,
     private readonly salerKPIService: SalerKPIService,
+    private readonly landingPageService: LandingPageService,
     @InjectModel(SalerDetails.name)
     private salerDetailsModel: Model<SalerDetailsDocument>,
     @InjectModel(Course.name)
@@ -95,9 +97,89 @@ export class SalerService {
 
   /**
    * Get orders for saler with pagination and filtering
+   * Shows both pending submissions and paid orders
    */
   async getOrders(salerId: string, query: SalerOrdersQuery) {
-    return this.orderService.findBySalerId(salerId, query);
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+
+    // Query all submissions by saler (source of truth)
+    const submissions =
+      await this.landingPageService.findUserFormSubmissionsBySalerId(salerId, {
+        page,
+        limit,
+      });
+
+    if (submissions.data.length === 0) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+      };
+    }
+
+    // Get submission IDs
+    const submissionIds = submissions.data.map((s: any) => s._id.toString());
+
+    // Find orders for these submissions
+    const orders = await this.orderService.findBySubmissionIds(submissionIds);
+
+    // Create a map of submission_id -> order for quick lookup
+    const orderMap = new Map(
+      orders.map((o: any) => [o.user_submission_id.toString(), o]),
+    );
+
+    // Merge data: submissions with payment status
+    const data = submissions.data.map((submission: any) => {
+      const order = orderMap.get(submission._id.toString());
+      const course = submission.landing_page_id?.course_id;
+
+      return {
+        _id: submission._id,
+        submission_id: submission._id,
+        student_name: submission.name,
+        student_email: submission.email,
+        student_phone: submission.phone,
+        address: submission.address,
+        landing_page: {
+          _id: submission.landing_page_id?._id,
+          title: submission.landing_page_id?.title,
+        },
+        course: course
+          ? {
+              _id: course._id,
+              title: course.title,
+              slug: course.slug,
+              price: course.price,
+            }
+          : null,
+        status: order ? "paid" : "pending",
+        amount: order?.amount || null,
+        paid_at: order?.paid_at || null,
+        created_at: submission.created_at,
+        referral_code: submission.referral_code,
+      };
+    });
+
+    // Filter by status if specified
+    let filteredData = data;
+    if (query.status) {
+      filteredData = data.filter((item: any) => item.status === query.status);
+    }
+
+    return {
+      data: filteredData,
+      meta: {
+        total: submissions.total,
+        page,
+        limit,
+        totalPages: Math.ceil(submissions.total / limit),
+      },
+    };
   }
 
   /**
@@ -138,8 +220,8 @@ export class SalerService {
           specificCommission?.commission_rate ??
           salerDetails.default_commission_rate ??
           0,
-        referral_link: `${domain}/landing/${course._id}?ref=${salerDetails.user_id}`,
-        referral_code: salerDetails.user_id.toString(),
+        referral_link: `${domain}/landing/${course._id}?ref=${salerDetails.code_saler}`,
+        referral_code: salerDetails.code_saler,
       };
     });
 

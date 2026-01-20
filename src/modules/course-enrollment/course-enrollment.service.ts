@@ -15,7 +15,7 @@ import {
 export class CourseEnrollmentService {
   constructor(
     @InjectModel(CourseEnrollment.name)
-    private courseEnrollmentModel: Model<CourseEnrollmentDocument>
+    private courseEnrollmentModel: Model<CourseEnrollmentDocument>,
   ) {}
 
   /**
@@ -24,7 +24,7 @@ export class CourseEnrollmentService {
   async createEnrollment(
     userId: string,
     courseId: string,
-    paymentTransactionId: string
+    paymentTransactionId: string,
   ): Promise<CourseEnrollment> {
     // Check if enrollment already exists
     const existing = await this.courseEnrollmentModel.findOne({
@@ -55,12 +55,20 @@ export class CourseEnrollmentService {
    * Check if user is enrolled in a course
    */
   async isUserEnrolled(userId: string, courseId: string): Promise<boolean> {
+    const mongoose = require("mongoose");
     const enrollment = await this.courseEnrollmentModel.findOne({
-      user_id: userId,
-      course_id: courseId,
+      user_id: new mongoose.Types.ObjectId(userId),
+      course_id: new mongoose.Types.ObjectId(courseId),
       is_deleted: false,
     });
-
+    console.log(
+      "🔍 isUserEnrolled check - userId:",
+      userId,
+      "courseId:",
+      courseId,
+      "found:",
+      !!enrollment,
+    );
     return !!enrollment;
   }
 
@@ -69,7 +77,7 @@ export class CourseEnrollmentService {
    */
   async isSubmissionEnrolled(
     submissionId: string,
-    courseId: string
+    courseId: string,
   ): Promise<boolean> {
     // This requires joining with PaymentTransaction to get user_form_submission_id
     // For now, we'll use a different approach in the payment service
@@ -81,7 +89,7 @@ export class CourseEnrollmentService {
    */
   async getEnrollment(
     userId: string,
-    courseId: string
+    courseId: string,
   ): Promise<CourseEnrollment | null> {
     return this.courseEnrollmentModel.findOne({
       user_id: userId,
@@ -120,7 +128,7 @@ export class CourseEnrollmentService {
   async updateEnrollmentStatus(
     userId: string,
     courseId: string,
-    status: EnrollmentStatus
+    status: EnrollmentStatus,
   ): Promise<CourseEnrollment> {
     const enrollment = await this.getEnrollment(userId, courseId);
 
@@ -134,7 +142,7 @@ export class CourseEnrollmentService {
         status,
         updated_at: new Date(),
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updated) {

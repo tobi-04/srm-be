@@ -15,6 +15,7 @@ import { OrderStatus } from "../order/entities/order.entity";
 import { SalerStudentsQuery } from "./dto/saler-students-query.dto";
 import { SalerCacheListener } from "./listeners/saler-cache.listener";
 import { RedisCacheModule } from "../../common/cache/redis-cache.module";
+import { LandingPageModule } from "../landing-page/landing-page.module";
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { RedisCacheModule } from "../../common/cache/redis-cache.module";
     OrderModule,
     CommissionModule,
     SalerKPIModule,
+    LandingPageModule,
     RedisCacheModule,
   ],
   controllers: [SalerController],

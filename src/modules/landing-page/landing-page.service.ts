@@ -180,7 +180,9 @@ export class LandingPageService {
 
     // If not found by slug, try by ID if it's a valid ObjectId
     if (!landingPage && /^[0-9a-fA-F]{24}$/.test(slug)) {
-      landingPage = await this.landingPageRepository.findById(slug);
+      landingPage = await this.landingPageRepository.findById(slug, {
+        populate: ["course_id"],
+      });
     }
 
     // If still not found, try finding a published landing page by course_id
@@ -194,6 +196,13 @@ export class LandingPageService {
         landingPage =
           landingPages.find((lp) => lp.status === "published") ||
           landingPages[0];
+        // Force populate course_id for this path
+        if (landingPage && typeof landingPage.course_id === "string") {
+          landingPage = await this.landingPageRepository.findById(
+            landingPage._id.toString(),
+            { populate: ["course_id"] },
+          );
+        }
       }
     }
 
@@ -306,9 +315,14 @@ export class LandingPageService {
         );
       }
 
+      const courseId =
+        typeof landingPage.course_id === "object"
+          ? (landingPage.course_id as any)._id.toString()
+          : landingPage.course_id.toString();
+
       const isEnrolled = await this.enrollmentService.isUserEnrolled(
         user._id.toString(),
-        landingPage.course_id,
+        courseId,
       );
       if (isEnrolled) {
         throw new BadRequestException(
@@ -317,12 +331,9 @@ export class LandingPageService {
       }
     }
 
-    // Check if submission with this email already exists for this landing page
+    // Check if submission with this email already exists
     const existingSubmission =
-      await this.landingPageRepository.findUserSubmissionByEmail(
-        email,
-        landingPage._id.toString(),
-      );
+      await this.landingPageRepository.findUserSubmissionByEmail(email);
 
     let trafficSourceId: string | undefined;
 
@@ -352,24 +363,12 @@ export class LandingPageService {
     // Lookup saler if referral code is provided
     if (submitUserFormDto.referral_code) {
       try {
-        // Try looking up by User ID first (new format)
-        if (/^[0-9a-fA-F]{24}$/.test(submitUserFormDto.referral_code)) {
-          const salerDetails = await this.salerDetailsService.getSalerDetails(
-            submitUserFormDto.referral_code,
-          );
-          if (salerDetails) {
-            salerId = salerDetails.user_id.toString();
-          }
-        }
-
-        // If not found/not ID, fallback to code_saler (legacy)
-        if (!salerId) {
-          const salerDetails = await this.salerDetailsService.findByCodeSaler(
-            submitUserFormDto.referral_code,
-          );
-          if (salerDetails) {
-            salerId = salerDetails.user_id.toString();
-          }
+        // Lookup by code_saler (format: AFF{timestamp})
+        const salerDetails = await this.salerDetailsService.findByCodeSaler(
+          submitUserFormDto.referral_code,
+        );
+        if (salerDetails) {
+          salerId = salerDetails.user_id.toString();
         }
       } catch (error) {
         console.error("Failed to lookup saler by referral code:", error);
@@ -383,11 +382,11 @@ export class LandingPageService {
         {
           name: submitUserFormDto.name,
           email: email,
-          phone: submitUserFormDto.phone,
-          address: submitUserFormDto.address,
+          phone: submitUserFormDto.phone || existingSubmission.phone,
+          address: submitUserFormDto.address || existingSubmission.address,
           birthday: submitUserFormDto.birthday
             ? new Date(submitUserFormDto.birthday)
-            : undefined,
+            : existingSubmission.birthday,
           landing_page_id: landingPage._id.toString(),
           traffic_source_id:
             trafficSourceId || existingSubmission.traffic_source_id,
@@ -449,6 +448,23 @@ export class LandingPageService {
       landingPageId,
       page,
       limit,
+    );
+  }
+
+  /**
+   * Get user form submissions by saler ID
+   */
+  async findUserFormSubmissionsBySalerId(
+    salerId: string,
+    options: {
+      page?: number;
+      limit?: number;
+      excludeSubmissionIds?: string[];
+    } = {},
+  ) {
+    return this.landingPageRepository.findUserFormSubmissionsBySalerId(
+      salerId,
+      options,
     );
   }
 }

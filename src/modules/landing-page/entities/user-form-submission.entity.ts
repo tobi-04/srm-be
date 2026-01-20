@@ -61,5 +61,6 @@ export const UserFormSubmissionSchema =
 // Add indexes for efficient querying
 UserFormSubmissionSchema.index({ landing_page_id: 1 });
 UserFormSubmissionSchema.index({ email: 1 });
+UserFormSubmissionSchema.index({ saler_id: 1, created_at: -1 }); // For saler orders query
 UserFormSubmissionSchema.index({ created_at: -1 });
 UserFormSubmissionSchema.index({ is_deleted: 1 });

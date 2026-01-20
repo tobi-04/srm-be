@@ -199,4 +199,17 @@ export class OrderRepository {
   async findById(orderId: string): Promise<OrderDocument | null> {
     return this.orderModel.findOne({ _id: orderId, is_deleted: false }).exec();
   }
+
+  /**
+   * Find orders by submission IDs
+   */
+  async findBySubmissionIds(submissionIds: string[]): Promise<any[]> {
+    return this.orderModel
+      .find({
+        user_submission_id: { $in: submissionIds },
+        is_deleted: false,
+      })
+      .lean()
+      .exec();
+  }
 }

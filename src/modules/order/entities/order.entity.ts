@@ -67,6 +67,7 @@ export const OrderSchema = SchemaFactory.createForClass(Order);
 
 // Indexes for efficient querying
 OrderSchema.index({ saler_id: 1, status: 1, created_at: -1 });
+OrderSchema.index({ saler_id: 1, status: 1, paid_at: -1 }); // Optimize KPI queries
 OrderSchema.index({ user_submission_id: 1 });
 OrderSchema.index({ course_id: 1 });
 OrderSchema.index({ payment_id: 1 });

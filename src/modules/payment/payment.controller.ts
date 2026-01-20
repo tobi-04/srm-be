@@ -11,6 +11,10 @@ import { PaymentTransactionService } from "../payment-transaction/payment-transa
 import { CourseEnrollmentService } from "../course-enrollment/course-enrollment.service";
 import { CreatePaymentTransactionDto } from "./dto/create-payment-transaction.dto";
 import { SePayService } from "./sepay.service";
+import { LandingPageService } from "../landing-page/landing-page.service";
+import { UserService } from "../user/user.service";
+import { CourseService } from "../course/course.service";
+import { Types } from "mongoose";
 
 @Controller("payment")
 export class PaymentController {
@@ -20,10 +24,13 @@ export class PaymentController {
     private readonly configService: ConfigService,
     private readonly paymentTransactionService: PaymentTransactionService,
     private readonly courseEnrollmentService: CourseEnrollmentService,
-    private readonly sePayService: SePayService
+    private readonly sePayService: SePayService,
+    private readonly landingPageService: LandingPageService,
+    private readonly userService: UserService,
+    private readonly courseService: CourseService,
   ) {
     this.paymentFee = parseInt(
-      this.configService.get<string>("PAYMENT_FEE") || "700"
+      this.configService.get<string>("PAYMENT_FEE") || "700",
     );
   }
 
@@ -36,24 +43,50 @@ export class PaymentController {
     // if it's a legacy or temporary ID
     if (!/^[0-9a-fA-F]{24}$/.test(dto.user_submission_id)) {
       throw new BadRequestException(
-        "Invalid submission ID. Please try re-submitting the registration form on the first step."
+        "Invalid submission ID. Please try re-submitting the registration form on the first step.",
       );
     }
 
+    // Fetch course price directly from database
+    const course = await this.courseService.findOne(dto.course_id, true);
+    if (!course) {
+      throw new BadRequestException("Course not found");
+    }
+    const coursePrice = course.price || 0;
+    console.log("💰 Course price fetched from DB:", coursePrice);
+
     // Calculate total amount
-    const totalAmount = dto.course_price + this.paymentFee;
+    const totalAmount = coursePrice + this.paymentFee;
+
+    // Check if user is already enrolled
+    const submission = await this.landingPageService.findUserSubmissionById(
+      dto.user_submission_id,
+    );
+    if (submission) {
+      const email = submission.email.toLowerCase().trim();
+      const user = await this.userService.findByEmail(email);
+      if (user) {
+        const isEnrolled = await this.courseEnrollmentService.isUserEnrolled(
+          user._id.toString(),
+          dto.course_id.toString(),
+        );
+        if (isEnrolled) {
+          throw new BadRequestException("ALREADY_ENROLLED");
+        }
+      }
+    }
 
     // Create payment transaction
     const transaction = await this.paymentTransactionService.createTransaction(
       dto.course_id,
       dto.user_submission_id,
-      totalAmount
+      totalAmount,
     );
 
     // Generate QR code and bank data using SePayService
     const sepayData = await this.sePayService.createQR(
       totalAmount,
-      transaction._id.toString()
+      transaction._id.toString(),
     );
 
     return {
@@ -76,13 +109,47 @@ export class PaymentController {
    */
   @Get("transaction/:id")
   async getPaymentTransaction(@Param("id") id: string) {
-    const transaction = await this.paymentTransactionService.getTransactionById(
-      id
+    const transaction =
+      await this.paymentTransactionService.getTransactionById(id);
+
+    // Check if user is already enrolled for this transaction's course
+    const submission = await this.landingPageService.findUserSubmissionById(
+      transaction.user_form_submission_id,
     );
+    console.log(
+      "📋 GET /transaction/:id - Submission:",
+      submission?._id,
+      "Email:",
+      submission?.email,
+    );
+    if (submission) {
+      const email = submission.email.toLowerCase().trim();
+      const user = await this.userService.findByEmail(email);
+      console.log(
+        "👤 GET /transaction/:id - User found:",
+        user ? user._id : "NO USER FOUND",
+      );
+      if (user) {
+        console.log(
+          "🔍 Checking enrollment - UserId:",
+          user._id.toString(),
+          "CourseId:",
+          transaction.course_id.toString(),
+        );
+        const isEnrolled = await this.courseEnrollmentService.isUserEnrolled(
+          user._id.toString(),
+          transaction.course_id.toString(),
+        );
+        console.log("✅ GET /transaction/:id - isEnrolled:", isEnrolled);
+        if (isEnrolled) {
+          throw new BadRequestException("ALREADY_ENROLLED");
+        }
+      }
+    }
 
     const sepayData = await this.sePayService.createQR(
       transaction.amount,
-      transaction._id.toString()
+      transaction._id.toString(),
     );
 
     return {
