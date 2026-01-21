@@ -59,6 +59,113 @@ export class OrderRepository {
   }
 
   /**
+   * Find all orders with pagination, search and filtering for Admin
+   */
+  async findAllForAdmin(query: {
+    page?: number;
+    limit?: number;
+    status?: OrderStatus;
+    search?: string;
+  }) {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const filter: any = { is_deleted: false };
+
+    if (query.status) {
+      filter.status = query.status;
+    }
+
+    // Basic filter first, search might require aggregation if searching in populated fields
+    // For simplicity, we'll use regex if we had the fields directly, but since we use populate,
+    // we might need a more advanced approach if searching by student name/course title.
+    // However, if the search term looks like an ID, we can search by ID directly.
+    if (query.search) {
+      if (Types.ObjectId.isValid(query.search)) {
+        filter.$or = [{ _id: new Types.ObjectId(query.search) }];
+      } else {
+        // We'll search in amount or status if they are strings, but usually search is for names.
+        // For populated fields search in Mongoose, we'd need aggregation or separate queries.
+        // Let's assume for now we search on the Order fields directly if any match.
+      }
+    }
+
+    // To properly search by student name or course title, we need to find those IDs first
+    // or use aggregation. Given the repo structure, aggregation is cleaner.
+
+    const pipeline: any[] = [
+      { $match: filter },
+      {
+        $lookup: {
+          from: "user_form_submissions",
+          localField: "user_submission_id",
+          foreignField: "_id",
+          as: "student",
+        },
+      },
+      { $unwind: { path: "$student", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "courses",
+          localField: "course_id",
+          foreignField: "_id",
+          as: "course",
+        },
+      },
+      { $unwind: { path: "$course", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "saler_id",
+          foreignField: "_id",
+          as: "saler",
+        },
+      },
+      { $unwind: { path: "$saler", preserveNullAndEmptyArrays: true } },
+    ];
+
+    if (query.search) {
+      const searchRegex = new RegExp(query.search, "i");
+      pipeline.push({
+        $match: {
+          $or: [
+            { "student.name": searchRegex },
+            { "student.email": searchRegex },
+            { "course.title": searchRegex },
+            { "saler.name": searchRegex },
+          ],
+        },
+      });
+    }
+
+    const countPipeline = [...pipeline, { $count: "total" }];
+
+    pipeline.push(
+      { $sort: { created_at: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+    );
+
+    const [data, countResult] = await Promise.all([
+      this.orderModel.aggregate(pipeline).exec(),
+      this.orderModel.aggregate(countPipeline).exec(),
+    ]);
+
+    const total = countResult[0]?.total || 0;
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
    * Count orders by saler ID and date range
    */
   async countBySalerIdAndDate(

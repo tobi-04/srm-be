@@ -94,6 +94,18 @@ export class OrderService {
   }
 
   /**
+   * Find all orders with pagination, search and filtering for Admin
+   */
+  async findAllForAdmin(query: {
+    page?: number;
+    limit?: number;
+    status?: OrderStatus;
+    search?: string;
+  }) {
+    return this.orderRepository.findAllForAdmin(query);
+  }
+
+  /**
    * Find orders by submission IDs
    */
   async findBySubmissionIds(submissionIds: string[]) {
