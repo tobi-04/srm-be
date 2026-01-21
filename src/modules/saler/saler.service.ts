@@ -35,8 +35,13 @@ export class SalerService {
 
   /**
    * Get dashboard overview for saler
+   * @param salerId - Saler user ID
+   * @param days - Number of days for chart data (default: 7)
    */
-  async getDashboardOverview(salerId: string): Promise<SalerDashboardResponse> {
+  async getDashboardOverview(
+    salerId: string,
+    days: number = 7,
+  ): Promise<SalerDashboardResponse> {
     const startOfToday = dayjs().startOf("day").toDate();
     const endOfToday = dayjs().endOf("day").toDate();
     const startOfMonth = dayjs().startOf("month").toDate();
@@ -64,7 +69,7 @@ export class SalerService {
       ),
       this.orderService.sumRevenueBySalerId(salerId, allTimeStart, new Date()),
       this.commissionService.getSummaryBySalerId(salerId),
-      this.orderService.getDailyRevenueChart(salerId, 30),
+      this.orderService.getDailyRevenueChart(salerId, days),
       this.salerDetailsModel
         .findOne({ user_id: salerId, is_deleted: false })
         .lean()

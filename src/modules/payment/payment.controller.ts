@@ -112,37 +112,41 @@ export class PaymentController {
     const transaction =
       await this.paymentTransactionService.getTransactionById(id);
 
-    // Check if user is already enrolled for this transaction's course
-    const submission = await this.landingPageService.findUserSubmissionById(
-      transaction.user_form_submission_id,
-    );
-    console.log(
-      "📋 GET /transaction/:id - Submission:",
-      submission?._id,
-      "Email:",
-      submission?.email,
-    );
-    if (submission) {
-      const email = submission.email.toLowerCase().trim();
-      const user = await this.userService.findByEmail(email);
-      console.log(
-        "👤 GET /transaction/:id - User found:",
-        user ? user._id : "NO USER FOUND",
+    // Only check enrollment for pending transactions
+    // If transaction is completed, user should see success page, not be redirected
+    if (transaction.status === "pending") {
+      // Check if user is already enrolled for this transaction's course
+      const submission = await this.landingPageService.findUserSubmissionById(
+        transaction.user_form_submission_id,
       );
-      if (user) {
+      console.log(
+        "📋 GET /transaction/:id - Submission:",
+        submission?._id,
+        "Email:",
+        submission?.email,
+      );
+      if (submission) {
+        const email = submission.email.toLowerCase().trim();
+        const user = await this.userService.findByEmail(email);
         console.log(
-          "🔍 Checking enrollment - UserId:",
-          user._id.toString(),
-          "CourseId:",
-          transaction.course_id.toString(),
+          "👤 GET /transaction/:id - User found:",
+          user ? user._id : "NO USER FOUND",
         );
-        const isEnrolled = await this.courseEnrollmentService.isUserEnrolled(
-          user._id.toString(),
-          transaction.course_id.toString(),
-        );
-        console.log("✅ GET /transaction/:id - isEnrolled:", isEnrolled);
-        if (isEnrolled) {
-          throw new BadRequestException("ALREADY_ENROLLED");
+        if (user) {
+          console.log(
+            "🔍 Checking enrollment - UserId:",
+            user._id.toString(),
+            "CourseId:",
+            transaction.course_id.toString(),
+          );
+          const isEnrolled = await this.courseEnrollmentService.isUserEnrolled(
+            user._id.toString(),
+            transaction.course_id.toString(),
+          );
+          console.log("✅ GET /transaction/:id - isEnrolled:", isEnrolled);
+          if (isEnrolled) {
+            throw new BadRequestException("ALREADY_ENROLLED");
+          }
         }
       }
     }

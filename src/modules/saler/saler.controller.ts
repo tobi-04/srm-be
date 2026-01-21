@@ -42,9 +42,13 @@ export class SalerController {
     type: SalerDashboardResponse,
   })
   @HttpCode(HttpStatus.OK)
-  async getDashboard(@Req() req: any): Promise<SalerDashboardResponse> {
+  async getDashboard(
+    @Req() req: any,
+    @Query("days") days?: string,
+  ): Promise<SalerDashboardResponse> {
     const salerId = req.user.userId; // Extract from JWT
-    return this.salerService.getDashboardOverview(salerId);
+    const daysNum = days ? parseInt(days, 10) : 7;
+    return this.salerService.getDashboardOverview(salerId, daysNum);
   }
 
   @Get("orders")
