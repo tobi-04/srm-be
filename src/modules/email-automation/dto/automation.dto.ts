@@ -10,7 +10,6 @@ import {
   EventType,
   TriggerType,
   TargetGroup,
-  ScheduleType,
 } from "../entities/email-automation.entity";
 
 export class CreateAutomationDto {
@@ -39,20 +38,10 @@ export class CreateAutomationDto {
   @IsOptional()
   target_group?: TargetGroup;
 
-  @ApiProperty({ enum: ScheduleType, default: ScheduleType.ONCE })
-  @IsEnum(ScheduleType)
-  @IsOptional()
-  schedule_type?: ScheduleType;
-
-  @ApiProperty({ example: "0 9 * * *", required: false })
+  @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
-  cron_expression?: string;
-
-  @ApiProperty({ required: false })
-  @IsDateString()
-  @IsOptional()
-  scheduled_at?: string;
+  created_by?: string;
 }
 
 export class UpdateAutomationDto {
@@ -81,18 +70,7 @@ export class UpdateAutomationDto {
   @IsOptional()
   target_group?: TargetGroup;
 
-  @ApiProperty({ enum: ScheduleType, required: false })
-  @IsEnum(ScheduleType)
-  @IsOptional()
-  schedule_type?: ScheduleType;
-
-  @ApiProperty({ example: "0 9 * * *", required: false })
-  @IsString()
-  @IsOptional()
-  cron_expression?: string;
-
   @ApiProperty({ required: false })
-  @IsDateString()
   @IsOptional()
-  scheduled_at?: string;
+  is_active?: boolean;
 }

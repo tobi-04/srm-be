@@ -11,7 +11,6 @@ import {
   EventType,
   TriggerType,
   TargetGroup,
-  ScheduleType,
 } from "../entities/email-automation.entity";
 import {
   EmailAutomationStep,
@@ -35,45 +34,11 @@ import {
   CourseEnrollment,
   CourseEnrollmentDocument,
 } from "../../course-enrollment/entities/course-enrollment.entity";
-
-export interface CreateAutomationDto {
-  name: string;
-  description?: string;
-  trigger_type?: TriggerType;
-  event_type?: EventType;
-  target_group?: TargetGroup;
-  schedule_type?: ScheduleType;
-  cron_expression?: string;
-  scheduled_at?: string;
-  created_by: string;
-}
-
-export interface UpdateAutomationDto {
-  name?: string;
-  description?: string;
-  trigger_type?: TriggerType;
-  event_type?: EventType;
-  target_group?: TargetGroup;
-  schedule_type?: ScheduleType;
-  cron_expression?: string;
-  scheduled_at?: string;
-  is_active?: boolean;
-}
-
-export interface CreateStepDto {
-  automation_id: string;
-  step_order: number;
-  delay_minutes: number;
-  subject_template: string;
-  body_template: string;
-}
-
-export interface UpdateStepDto {
-  step_order?: number;
-  delay_minutes?: number;
-  subject_template?: string;
-  body_template?: string;
-}
+import {
+  CreateAutomationDto,
+  UpdateAutomationDto,
+} from "../dto/automation.dto";
+import { CreateStepDto, UpdateStepDto } from "../dto/step.dto";
 
 @Injectable()
 export class EmailAutomationService {
@@ -94,14 +59,14 @@ export class EmailAutomationService {
     private emailLogModel: Model<EmailLogDocument>,
     @InjectQueue("email-automation")
     private emailQueue: Queue,
-    private templateService: EmailTemplateService
+    private templateService: EmailTemplateService,
   ) {}
 
   /**
    * Create new email automation
    */
   async createAutomation(
-    dto: CreateAutomationDto
+    dto: CreateAutomationDto,
   ): Promise<EmailAutomationDocument> {
     const automation = new this.automationModel({
       ...dto,
@@ -120,7 +85,7 @@ export class EmailAutomationService {
    * Get all automations
    */
   async getAutomations(
-    includeInactive = true
+    includeInactive = true,
   ): Promise<EmailAutomationDocument[]> {
     const filter: any = { is_deleted: false };
     if (!includeInactive) {
@@ -151,19 +116,17 @@ export class EmailAutomationService {
    */
   async updateAutomation(
     id: string,
-    dto: UpdateAutomationDto
+    dto: UpdateAutomationDto,
   ): Promise<EmailAutomationDocument> {
     const automation = await this.automationModel.findOneAndUpdate(
       { _id: id, is_deleted: false },
       { ...dto, updated_at: new Date() },
-      { new: true }
+      { new: true },
     );
 
     if (!automation) {
       throw new NotFoundException("Automation not found");
     }
-
-    await this.updateAutomationSchedule(automation);
 
     return automation;
   }
@@ -181,54 +144,17 @@ export class EmailAutomationService {
         is_active: newActiveStatus,
         updated_at: new Date(),
       },
-      { new: true }
+      { new: true },
     );
 
-    await this.updateAutomationSchedule(updated);
+    // If activated and it's a group trigger, trigger a one-time broadcast
+    if (updated.is_active && updated.trigger_type === TriggerType.GROUP) {
+      await this.emailQueue.add("broadcast-dispatcher", {
+        automationId: updated._id.toString(),
+      });
+    }
 
     return updated;
-  }
-
-  /**
-   * Manage BullMQ scheduling based on automation config
-   */
-  private async updateAutomationSchedule(
-    automation: EmailAutomationDocument
-  ): Promise<void> {
-    // Remove existing repeatable job if any
-    if (automation.repeat_job_key) {
-      await this.emailQueue.removeRepeatableByKey(automation.repeat_job_key);
-      await this.automationModel.updateOne(
-        { _id: automation._id },
-        { repeat_job_key: null }
-      );
-    }
-
-    // Add new repeatable job if active and recurring
-    if (
-      automation.is_active &&
-      !automation.is_deleted &&
-      automation.trigger_type === TriggerType.GROUP &&
-      automation.schedule_type === ScheduleType.RECURRING &&
-      automation.cron_expression
-    ) {
-      const job = await this.emailQueue.add(
-        "broadcast-dispatcher",
-        { automationId: automation._id.toString() },
-        {
-          repeat: {
-            pattern: automation.cron_expression,
-          },
-        }
-      );
-
-      if (job && (job as any).repeatJobKey) {
-        await this.automationModel.updateOne(
-          { _id: automation._id },
-          { repeat_job_key: (job as any).repeatJobKey }
-        );
-      }
-    }
   }
 
   /**
@@ -290,34 +216,26 @@ export class EmailAutomationService {
   }
 
   /**
-   * Delete automation (soft delete)
+   * Delete automation (hard delete)
    */
   async deleteAutomation(id: string): Promise<void> {
-    const automation = await this.automationModel.findOneAndUpdate(
-      { _id: id, is_deleted: false },
-      { is_deleted: true, updated_at: new Date() },
-      { new: true }
-    );
+    const automation = await this.automationModel.findByIdAndDelete(id);
 
     if (!automation) {
       throw new NotFoundException("Automation not found");
     }
 
-    // Remove from BullMQ
-    await this.updateAutomationSchedule(automation);
-
-    // Also soft delete all steps
-    await this.stepModel.updateMany(
-      { automation_id: new Types.ObjectId(id), is_deleted: false },
-      { is_deleted: true, updated_at: new Date() }
-    );
+    // Hard delete all steps associated with this automation
+    await this.stepModel.deleteMany({
+      automation_id: new Types.ObjectId(id),
+    });
   }
 
   /**
    * Get active automations by event type
    */
   async getActiveAutomationsByEvent(
-    eventType: EventType
+    eventType: EventType,
   ): Promise<EmailAutomationDocument[]> {
     return this.automationModel.find({
       event_type: eventType,
@@ -337,20 +255,20 @@ export class EmailAutomationService {
 
     // Validate templates
     const subjectValidation = this.templateService.validateTemplate(
-      dto.subject_template
+      dto.subject_template,
     );
     if (!subjectValidation.valid) {
       throw new BadRequestException(
-        `Invalid subject template: ${subjectValidation.error}`
+        `Invalid subject template: ${subjectValidation.error}`,
       );
     }
 
     const bodyValidation = this.templateService.validateTemplate(
-      dto.body_template
+      dto.body_template,
     );
     if (!bodyValidation.valid) {
       throw new BadRequestException(
-        `Invalid body template: ${bodyValidation.error}`
+        `Invalid body template: ${bodyValidation.error}`,
       );
     }
 
@@ -398,27 +316,27 @@ export class EmailAutomationService {
    */
   async updateStep(
     id: string,
-    dto: UpdateStepDto
+    dto: UpdateStepDto,
   ): Promise<EmailAutomationStepDocument> {
     // Validate templates if provided
     if (dto.subject_template) {
       const validation = this.templateService.validateTemplate(
-        dto.subject_template
+        dto.subject_template,
       );
       if (!validation.valid) {
         throw new BadRequestException(
-          `Invalid subject template: ${validation.error}`
+          `Invalid subject template: ${validation.error}`,
         );
       }
     }
 
     if (dto.body_template) {
       const validation = this.templateService.validateTemplate(
-        dto.body_template
+        dto.body_template,
       );
       if (!validation.valid) {
         throw new BadRequestException(
-          `Invalid body template: ${validation.error}`
+          `Invalid body template: ${validation.error}`,
         );
       }
     }
@@ -426,7 +344,7 @@ export class EmailAutomationService {
     const step = await this.stepModel.findOneAndUpdate(
       { _id: id, is_deleted: false },
       { ...dto, updated_at: new Date() },
-      { new: true }
+      { new: true },
     );
 
     if (!step) {
@@ -442,7 +360,7 @@ export class EmailAutomationService {
   async deleteStep(id: string): Promise<void> {
     const result = await this.stepModel.updateOne(
       { _id: id, is_deleted: false },
-      { is_deleted: true, updated_at: new Date() }
+      { is_deleted: true, updated_at: new Date() },
     );
 
     if (result.matchedCount === 0) {

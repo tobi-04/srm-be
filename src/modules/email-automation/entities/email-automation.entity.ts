@@ -20,11 +20,6 @@ export enum TargetGroup {
   SALERS = "salers",
 }
 
-export enum ScheduleType {
-  ONCE = "once",
-  RECURRING = "recurring",
-}
-
 @Schema({ collection: "email_automations", timestamps: false })
 export class EmailAutomation extends BaseEntity {
   @Prop({ required: true })
@@ -49,30 +44,11 @@ export class EmailAutomation extends BaseEntity {
   @Prop({ type: String, enum: TargetGroup, required: false })
   target_group: TargetGroup;
 
-  @Prop({
-    type: String,
-    enum: ScheduleType,
-    default: ScheduleType.ONCE,
-    required: false,
-  })
-  schedule_type: ScheduleType;
-
-  // Cron expression for recurring or one-time scheduling
-  @Prop({ required: false })
-  cron_expression: string;
-
-  @Prop({ type: Date, required: false })
-  scheduled_at: Date;
-
   @Prop({ default: false })
   is_active: boolean;
 
   @Prop({ type: Types.ObjectId, ref: "User" })
   created_by: Types.ObjectId;
-
-  // Store BullMQ repeat job key to manage scheduling
-  @Prop({ required: false })
-  repeat_job_key: string;
 }
 
 export type EmailAutomationDocument = HydratedDocument<EmailAutomation>;

@@ -3,7 +3,6 @@ import { Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { Job, Queue } from "bullmq";
-const parser = require("cron-parser");
 import {
   EmailLog,
   EmailLogDocument,
@@ -47,7 +46,7 @@ export class EmailAutomationProcessor extends WorkerHost {
     private emailQueue: Queue,
     private emailProvider: EmailProviderService,
     private templateService: EmailTemplateService,
-    private automationService: EmailAutomationService
+    private automationService: EmailAutomationService,
   ) {
     super();
   }
@@ -71,7 +70,7 @@ export class EmailAutomationProcessor extends WorkerHost {
     const finalBroadcastKey = broadcastKey || "once";
 
     this.logger.log(
-      `Processing email job ${job.id} for user ${userId}, automation ${automationId}, step ${stepId}, key ${finalBroadcastKey}`
+      `Processing email job ${job.id} for user ${userId}, automation ${automationId}, step ${stepId}, key ${finalBroadcastKey}`,
     );
 
     try {
@@ -85,7 +84,7 @@ export class EmailAutomationProcessor extends WorkerHost {
 
       if (existingLog && existingLog.status === EmailLogStatus.SENT) {
         this.logger.warn(
-          `Email already sent for user ${userId}, automation ${automationId}, step ${stepId}. Skipping.`
+          `Email already sent for user ${userId}, automation ${automationId}, step ${stepId}. Skipping.`,
         );
         return;
       }
@@ -118,11 +117,11 @@ export class EmailAutomationProcessor extends WorkerHost {
       // Render templates
       const subject = this.templateService.renderTemplate(
         step.subject_template,
-        variables
+        variables,
       );
       const body = this.templateService.renderTemplate(
         step.body_template,
-        variables
+        variables,
       );
 
       // Create or update email log
@@ -145,7 +144,7 @@ export class EmailAutomationProcessor extends WorkerHost {
         emailLog = await this.emailLogModel.findByIdAndUpdate(
           existingLog._id,
           { ...logData, status: EmailLogStatus.PENDING },
-          { new: true }
+          { new: true },
         );
       } else {
         emailLog = await this.emailLogModel.create(logData);
@@ -166,7 +165,7 @@ export class EmailAutomationProcessor extends WorkerHost {
       });
 
       this.logger.log(
-        `Email sent successfully to ${recipientEmail} for automation ${automationId}, step ${stepId}`
+        `Email sent successfully to ${recipientEmail} for automation ${automationId}, step ${stepId}`,
       );
     } catch (error) {
       this.logger.error(`Failed to process email job ${job.id}:`, error.stack);
@@ -185,7 +184,7 @@ export class EmailAutomationProcessor extends WorkerHost {
             error_message: error.message,
             updated_at: new Date(),
           },
-          { upsert: true }
+          { upsert: true },
         );
       } catch (logError) {
         this.logger.error("Failed to log email error:", logError);
@@ -199,91 +198,49 @@ export class EmailAutomationProcessor extends WorkerHost {
    * Handle group broadcast dispatcher (find users and queue individual emails)
    */
   private async handleBroadcastDispatcher(
-    job: Job<{ automationId: string }>
+    job: Job<{ automationId: string }>,
   ): Promise<void> {
     const { automationId } = job.data;
     this.logger.log(`Dispatching broadcast for automation ${automationId}`);
 
     try {
-      const automation = await this.automationService.getAutomationById(
-        automationId
-      );
+      const automation =
+        await this.automationService.getAutomationById(automationId);
       if (!automation || !automation.is_active || automation.is_deleted) {
         this.logger.warn(
-          `Automation ${automationId} is inactive or deleted. Skipping broadcast.`
+          `Automation ${automationId} is inactive or deleted. Skipping broadcast.`,
         );
         return;
       }
 
       if (automation.trigger_type !== TriggerType.GROUP) {
         this.logger.warn(
-          `Automation ${automationId} is not a GROUP type. Skipping broadcast.`
+          `Automation ${automationId} is not a GROUP type. Skipping broadcast.`,
         );
         return;
       }
 
       // 1. Get target users
       const userIds = await this.automationService.getTargetUserIds(
-        automation.target_group
+        automation.target_group,
       );
       this.logger.log(
-        `Found ${userIds.length} target users for group ${automation.target_group}`
+        `Found ${userIds.length} target users for group ${automation.target_group}`,
       );
 
       // 2. Get steps
       const steps = await this.automationService.getSteps(automationId);
       if (steps.length === 0) {
         this.logger.warn(
-          `No steps found for automation ${automationId}. Skipping broadcast.`
+          `No steps found for automation ${automationId}. Skipping broadcast.`,
         );
         return;
       }
 
-      // 3. Calculate minimum interval from cron
-      let minIntervalMs = 0;
-      if (automation.cron_expression) {
-        try {
-          const interval = parser.parseExpression(automation.cron_expression);
-          const next = interval.next().getTime();
-          const afterNext = interval.next().getTime();
-          minIntervalMs = (afterNext - next) * 0.9; // 10% buffer
-        } catch (e) {
-          this.logger.error(
-            `Failed to parse cron expression ${automation.cron_expression}:`,
-            e.message
-          );
-        }
-      }
-
-      // 4. Queue emails for each user
+      // 3. Queue emails for each user
       const today = new Date().toISOString().split("T")[0];
 
       for (const userId of userIds) {
-        // Check last send for this user/automation
-        if (minIntervalMs > 0) {
-          const lastLog = await this.emailLogModel
-            .findOne({
-              user_id: new Types.ObjectId(userId),
-              automation_id: automation._id,
-              status: EmailLogStatus.SENT,
-            })
-            .sort({ sent_at: -1 });
-
-          if (lastLog && lastLog.sent_at) {
-            const timeSinceLastSend = Date.now() - lastLog.sent_at.getTime();
-            if (timeSinceLastSend < minIntervalMs) {
-              this.logger.log(
-                `Skipping user ${userId} for automation ${automationId}. Last sent ${Math.round(
-                  timeSinceLastSend / 60000
-                )} mins ago, required gap ${Math.round(
-                  minIntervalMs / 60000
-                )} mins.`
-              );
-              continue;
-            }
-          }
-        }
-
         for (const step of steps) {
           await this.emailQueue.add(
             "email-job",
@@ -303,18 +260,18 @@ export class EmailAutomationProcessor extends WorkerHost {
                 type: "exponential",
                 delay: 60000,
               },
-            }
+            },
           );
         }
       }
 
       this.logger.log(
-        `Broadcast dispatch completed for ${userIds.length} users.`
+        `Broadcast dispatch completed for ${userIds.length} users.`,
       );
     } catch (error) {
       this.logger.error(
         `Broadcast dispatcher failed for ${automationId}:`,
-        error.stack
+        error.stack,
       );
       throw error;
     }
