@@ -7,6 +7,13 @@ export interface CourseCommission {
   commission_rate: number; // 0-100 percentage
 }
 
+export interface BankAccount {
+  account_holder: string; // Tên chủ tài khoản
+  account_number: string; // Số tài khoản
+  bank_code: string; // Mã ngân hàng (VD: MB, VCB, ACB)
+  bank_name: string; // Tên ngân hàng
+}
+
 @Schema({ collection: "saler_details", timestamps: false })
 export class SalerDetails extends BaseEntity {
   // Reference to User (saler)
@@ -54,6 +61,18 @@ export class SalerDetails extends BaseEntity {
   // Default commission for unspecified courses
   @Prop({ type: Number, default: 0, min: 0, max: 100 })
   default_commission_rate: number;
+
+  // Bank account information for commission payouts
+  @Prop({
+    type: {
+      account_holder: { type: String },
+      account_number: { type: String },
+      bank_code: { type: String },
+      bank_name: { type: String },
+    },
+    default: null,
+  })
+  bank_account: BankAccount | null;
 }
 
 export type SalerDetailsDocument = HydratedDocument<SalerDetails>;

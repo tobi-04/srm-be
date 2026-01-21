@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { SalerKPIService } from "./saler-kpi.service";
+import { SalerKPIController } from "./saler-kpi.controller";
 import { SalerKPI, SalerKPISchema } from "./entities/saler-kpi.entity";
 import {
   SalerDetails,
@@ -16,6 +17,7 @@ import { OrderModule } from "../order/order.module";
     ]),
     OrderModule,
   ],
+  controllers: [SalerKPIController],
   providers: [SalerKPIService],
   exports: [SalerKPIService],
 })

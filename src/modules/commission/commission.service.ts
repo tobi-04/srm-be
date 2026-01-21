@@ -102,4 +102,33 @@ export class CommissionService {
       metadata,
     });
   }
+
+  /**
+   * Mark commissions as paid for a saler (for withdrawal)
+   * Marks available commissions up to the specified amount as paid
+   */
+  async markAsPaidBySalerId(salerId: string, amount: number) {
+    // Get available commissions ordered by date
+    const availableCommissions = await this.commissionRepository.findBySalerId(
+      salerId,
+      { limit: 1000, status: CommissionStatus.AVAILABLE },
+    );
+
+    let remainingAmount = amount;
+
+    for (const commission of availableCommissions.data) {
+      if (remainingAmount <= 0) break;
+
+      // Mark this commission as paid
+      await this.commissionRepository.updateStatus(
+        commission._id.toString(),
+        CommissionStatus.PAID,
+        { paid_at: new Date() },
+      );
+
+      remainingAmount -= commission.commission_amount;
+    }
+
+    return { marked_amount: amount - Math.max(0, remainingAmount) };
+  }
 }

@@ -26,6 +26,7 @@ import { OrderModule } from "./modules/order/order.module";
 import { CommissionModule } from "./modules/commission/commission.module";
 import { SalerKPIModule } from "./modules/saler-kpi/saler-kpi.module";
 import { SalerModule } from "./modules/saler/saler.module";
+import { WithdrawalModule } from "./modules/withdrawal/withdrawal.module";
 import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
 
 @Module({
@@ -65,6 +66,7 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
     CommissionModule,
     SalerKPIModule,
     SalerModule,
+    WithdrawalModule,
   ],
   controllers: [AppController],
   providers: [AppService],

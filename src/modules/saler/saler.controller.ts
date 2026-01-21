@@ -1,6 +1,8 @@
 import {
   Controller,
   Get,
+  Put,
+  Body,
   Query,
   UseGuards,
   Req,
@@ -24,6 +26,7 @@ import {
 } from "./dto/saler-response.dto";
 import { SalerStudentsQuery } from "./dto/saler-students-query.dto";
 import { SalerKPIResponse } from "../saler-kpi/dto/kpi-response.dto";
+import { UpdateBankAccountDto } from "./dto/update-bank-account.dto";
 
 @ApiTags("Saler Dashboard")
 @ApiBearerAuth()
@@ -135,5 +138,29 @@ export class SalerController {
   async getStudents(@Req() req: any, @Query() query: SalerStudentsQuery) {
     const salerId = req.user.userId;
     return this.salerService.getStudents(salerId, query);
+  }
+
+  @Get("bank-account")
+  @ApiOperation({ summary: "Get saler bank account information" })
+  @ApiResponse({
+    status: 200,
+    description: "Bank account information",
+  })
+  @HttpCode(HttpStatus.OK)
+  async getBankAccount(@Req() req: any) {
+    const salerId = req.user.userId;
+    return this.salerService.getBankAccount(salerId);
+  }
+
+  @Put("bank-account")
+  @ApiOperation({ summary: "Update saler bank account information" })
+  @ApiResponse({
+    status: 200,
+    description: "Bank account updated successfully",
+  })
+  @HttpCode(HttpStatus.OK)
+  async updateBankAccount(@Req() req: any, @Body() dto: UpdateBankAccountDto) {
+    const salerId = req.user.userId;
+    return this.salerService.updateBankAccount(salerId, dto);
   }
 }

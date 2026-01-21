@@ -77,6 +77,26 @@ export class OrderRepository {
   }
 
   /**
+   * Find orders by saler ID and date range
+   */
+  async findBySalerIdAndDate(
+    salerId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Order[]> {
+    return this.orderModel
+      .find({
+        saler_id: new Types.ObjectId(salerId),
+        status: OrderStatus.PAID,
+        paid_at: { $gte: startDate, $lte: endDate },
+        is_deleted: false,
+      })
+      .populate("course_id", "title")
+      .lean()
+      .exec() as any;
+  }
+
+  /**
    * Sum revenue by saler ID and date range
    */
   async sumRevenueBySalerId(

@@ -303,4 +303,57 @@ export class SalerService {
 
     return { data: students };
   }
+
+  /**
+   * Get saler bank account information
+   */
+  async getBankAccount(salerId: string) {
+    const salerDetails = await this.salerDetailsModel
+      .findOne({ user_id: salerId, is_deleted: false })
+      .select("bank_account")
+      .lean()
+      .exec();
+
+    return {
+      bank_account: salerDetails?.bank_account || null,
+    };
+  }
+
+  /**
+   * Update saler bank account information
+   */
+  async updateBankAccount(
+    salerId: string,
+    dto: {
+      account_holder: string;
+      account_number: string;
+      bank_code: string;
+      bank_name: string;
+    },
+  ) {
+    const result = await this.salerDetailsModel.findOneAndUpdate(
+      { user_id: salerId, is_deleted: false },
+      {
+        $set: {
+          bank_account: {
+            account_holder: dto.account_holder.toUpperCase(),
+            account_number: dto.account_number,
+            bank_code: dto.bank_code,
+            bank_name: dto.bank_name,
+          },
+          updated_at: new Date(),
+        },
+      },
+      { new: true },
+    );
+
+    if (!result) {
+      throw new Error("Saler details not found");
+    }
+
+    return {
+      message: "Bank account updated successfully",
+      bank_account: result.bank_account,
+    };
+  }
 }
