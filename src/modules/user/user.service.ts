@@ -13,6 +13,7 @@ import {
   CourseEnrollment,
   CourseEnrollmentDocument,
 } from "../course-enrollment/entities/course-enrollment.entity";
+import { SalerDetailsService } from "../saler-details/saler-details.service";
 import * as bcrypt from "bcryptjs";
 
 @Injectable()
@@ -21,13 +22,14 @@ export class UserService {
     private readonly userRepository: UserRepository,
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(CourseEnrollment.name)
-    private readonly enrollmentModel: Model<CourseEnrollmentDocument>
+    private readonly enrollmentModel: Model<CourseEnrollmentDocument>,
+    private readonly salerDetailsService: SalerDetailsService,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
     const existingUser = await this.userRepository.findByEmail(
       createUserDto.email,
-      false
+      false,
     );
 
     if (existingUser) {
@@ -50,11 +52,11 @@ export class UserService {
       createUserDtos.map(async (dto) => ({
         ...dto,
         password: await bcrypt.hash(dto.password, 10),
-      }))
+      })),
     );
 
     const users = await this.userRepository.createMany(
-      usersWithHashedPasswords as any
+      usersWithHashedPasswords as any,
     );
 
     return users.map((user) => {
@@ -156,31 +158,90 @@ export class UserService {
   }
 
   /**
-   * Find salers (role: sale)
+   * Find salers (role: sale) with their details
    */
   async findSalers(paginationDto: PaginationDto) {
-    const { page, limit, sort, order, search } = paginationDto;
+    const { page = 1, limit = 20, search } = paginationDto;
+    const skip = (page - 1) * limit;
 
-    return this.userRepository.paginate({ role: UserRole.SALE } as any, {
-      page,
-      limit,
-      sort: sort || "created_at",
-      order,
-      search,
-      searchFields: ["name", "email"],
-      select: ["-password"],
-      useCache: true,
-      cacheTTL: 300,
-    });
+    const matchStage: any = {
+      role: UserRole.SALE,
+      is_deleted: false,
+    };
+
+    if (search) {
+      matchStage.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const pipeline: any[] = [
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "saler_details",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "saler_details",
+        },
+      },
+      {
+        $unwind: {
+          path: "$saler_details",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          code_saler: "$saler_details.code_saler",
+          kpi_monthly_target: "$saler_details.kpi_monthly_target",
+          kpi_quarterly_target: "$saler_details.kpi_quarterly_target",
+          kpi_yearly_target: "$saler_details.kpi_yearly_target",
+        },
+      },
+      {
+        $project: {
+          password: 0,
+          saler_details: 0,
+        },
+      },
+      { $sort: { created_at: -1 as const } },
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: limit }],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const [result] = await this.userModel.aggregate(pipeline);
+
+    const data = result?.data || [];
+    const total = result?.totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
   }
 
   /**
    * Create a new saler account with must_change_password = true
+   * Also creates saler_details with unique code_saler
    */
   async createSaler(dto: { email: string; password: string; name: string }) {
     const existingUser = await this.userRepository.findByEmail(
       dto.email,
-      false
+      false,
     );
 
     if (existingUser) {
@@ -198,8 +259,17 @@ export class UserService {
       is_active: true,
     } as any);
 
-    const { password, ...result } = (user as any).toObject();
-    return result;
+    // Create saler details with unique code_saler
+    const salerDetails = await this.salerDetailsService.createForSaler(
+      (user as any)._id.toString(),
+    );
+
+    const { password, ...userResult } = (user as any).toObject();
+
+    return {
+      ...userResult,
+      code_saler: salerDetails.code_saler,
+    };
   }
 
   async search(query: string, paginationDto: PaginationDto) {
@@ -286,7 +356,7 @@ export class UserService {
   async toggleActiveMany(ids: string[], setActive: boolean) {
     const result = await this.userModel.updateMany(
       { _id: { $in: ids }, is_deleted: false },
-      { is_active: setActive, updated_at: new Date() }
+      { is_active: setActive, updated_at: new Date() },
     );
 
     // Invalidate cache

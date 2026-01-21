@@ -10,6 +10,8 @@ import { PaymentTransactionModule } from "../payment-transaction/payment-transac
 import { CourseEnrollmentModule } from "../course-enrollment/course-enrollment.module";
 import { UserModule } from "../user/user.module";
 import { LandingPageModule } from "../landing-page/landing-page.module";
+import { OrderModule } from "../order/order.module";
+import { CourseModule } from "../course/course.module";
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { LandingPageModule } from "../landing-page/landing-page.module";
     CourseEnrollmentModule,
     UserModule,
     LandingPageModule,
+    OrderModule,
+    CourseModule,
   ],
   controllers: [PaymentController, PaymentWebhookController],
   providers: [PaymentService, SePayService],

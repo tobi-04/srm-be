@@ -14,7 +14,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
     @InjectModel(LandingPage.name) protected readonly model: Model<LandingPage>,
     @InjectModel(UserFormSubmission.name)
     private readonly userFormSubmissionModel: Model<UserFormSubmission>,
-    cacheService: RedisCacheService
+    cacheService: RedisCacheService,
   ) {
     super(cacheService);
   }
@@ -23,7 +23,11 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    * Find landing page by slug
    */
   async findBySlug(slug: string, useCache = true): Promise<LandingPage | null> {
-    return this.findOne({ slug } as any, { useCache, cacheTTL: 600 });
+    return this.findOne({ slug } as any, {
+      useCache: false, // Temporarily disable cache to force populate
+      cacheTTL: 600,
+      populate: ["course_id"],
+    });
   }
 
   /**
@@ -31,7 +35,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    */
   async findByCourseId(
     courseId: string,
-    useCache = true
+    useCache = true,
   ): Promise<LandingPage[]> {
     const query = { course_id: courseId } as any;
     const result = await this.paginate(query, {
@@ -50,6 +54,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
     return this.findOne({ slug, status: "published" } as any, {
       useCache: true,
       cacheTTL: 600,
+      populate: ["course_id"],
     });
   }
 
@@ -57,7 +62,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    * Save user form submission
    */
   async saveUserFormSubmission(
-    data: Partial<UserFormSubmission>
+    data: Partial<UserFormSubmission>,
   ): Promise<UserFormSubmission> {
     const submission = new this.userFormSubmissionModel(data);
     return submission.save();
@@ -67,21 +72,19 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    * Find user form submission by ID
    */
   async findUserSubmissionById(
-    submissionId: string
+    submissionId: string,
   ): Promise<UserFormSubmission | null> {
     return this.userFormSubmissionModel.findById(submissionId);
   }
 
   /**
-   * Find user form submission by email and landing page ID
+   * Find user form submission by email
    */
   async findUserSubmissionByEmail(
     email: string,
-    landingPageId: string
   ): Promise<UserFormSubmission | null> {
     return this.userFormSubmissionModel.findOne({
       email,
-      landing_page_id: landingPageId,
       is_deleted: false,
     });
   }
@@ -91,7 +94,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
    */
   async updateUserSubmission(
     submissionId: string,
-    data: Partial<UserFormSubmission>
+    data: Partial<UserFormSubmission>,
   ): Promise<UserFormSubmission> {
     const updated = await this.userFormSubmissionModel.findByIdAndUpdate(
       submissionId,
@@ -99,7 +102,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
         ...data,
         updated_at: new Date(),
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updated) {
@@ -115,7 +118,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
   async findUserFormSubmissionsByLandingPageId(
     landingPageId: string,
     page = 1,
-    limit = 50
+    limit = 50,
   ): Promise<{ data: UserFormSubmission[]; total: number }> {
     const skip = (page - 1) * limit;
     const query = { landing_page_id: landingPageId, is_deleted: false };
@@ -128,6 +131,55 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
         .limit(limit)
         .exec(),
       this.userFormSubmissionModel.countDocuments(query),
+    ]);
+
+    return { data, total };
+  }
+
+  /**
+   * Find user form submissions by saler ID with pagination
+   */
+  async findUserFormSubmissionsBySalerId(
+    salerId: string,
+    options: {
+      page?: number;
+      limit?: number;
+      excludeSubmissionIds?: string[];
+    } = {},
+  ): Promise<{ data: any[]; total: number }> {
+    const page = options.page || 1;
+    const limit = options.limit || 20;
+    const skip = (page - 1) * limit;
+
+    const filter: any = {
+      saler_id: salerId,
+      is_deleted: false,
+    };
+
+    // Exclude submissions that already have orders (to avoid duplicates)
+    if (options.excludeSubmissionIds?.length) {
+      filter._id = {
+        $nin: options.excludeSubmissionIds.map((id) => id),
+      };
+    }
+
+    const [data, total] = await Promise.all([
+      this.userFormSubmissionModel
+        .find(filter)
+        .populate({
+          path: "landing_page_id",
+          select: "title course_id",
+          populate: {
+            path: "course_id",
+            select: "title slug price",
+          },
+        })
+        .sort({ created_at: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.userFormSubmissionModel.countDocuments(filter).exec(),
     ]);
 
     return { data, total };

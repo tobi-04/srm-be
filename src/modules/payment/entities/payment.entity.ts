@@ -60,6 +60,22 @@ export class Payment extends BaseEntity {
 
   @Prop({ type: Object, default: {} })
   metadata?: Record<string, any>;
+
+  // UTM Tracking - traffic source reference (copied from user/submission)
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "TrafficSource",
+    required: false,
+  })
+  traffic_source_id?: string;
+
+  // Saler tracking - reference to the saler who referred this payment
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "User",
+    required: false,
+  })
+  saler_id?: string;
 }
 
 export type PaymentDocument = Payment & Document;
@@ -72,3 +88,4 @@ PaymentSchema.index({ transfer_content: 1 });
 PaymentSchema.index({ status: 1 });
 PaymentSchema.index({ created_at: -1 });
 PaymentSchema.index({ is_deleted: 1 });
+PaymentSchema.index({ saler_id: 1, status: 1 });

@@ -11,6 +11,7 @@ export interface TemplateVariables {
   course?: {
     title: string;
     id?: string;
+    learning_url?: string;
   };
   order?: {
     amount: number;
@@ -47,6 +48,8 @@ export class EmailTemplateService {
       [EventType.COURSE_PURCHASED]: [
         ...commonVariables,
         "{{course.title}}",
+        "{{course.id}}",
+        "{{course.learning_url}}",
         "{{order.amount}}",
         "{{temp_password}}",
         "{{is_new_user}}",
@@ -90,6 +93,8 @@ export class EmailTemplateService {
         },
         course: {
           title: "Advanced Web Development",
+          id: "696ddcaa645bd1147bad6647",
+          learning_url: "http://localhost:5173/learn/696ddcaa645bd1147bad6647",
         },
         order: {
           amount: 299000,

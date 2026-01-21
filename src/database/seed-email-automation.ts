@@ -77,7 +77,7 @@ async function bootstrap() {
 
                 <p>Bạn có thể bắt đầu hành trình học tập của mình ngay bây giờ bằng cách nhấn vào nút bên dưới:</p>
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="https://yourdomain.com/dashboard" style="background-color: #f78404; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">HỌC NGAY</a>
+                  <a href="{{course.learning_url}}" style="background-color: #f78404; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">HỌC NGAY</a>
                 </div>
                 <p>Nếu bạn gặp bất kỳ khó khăn nào trong quá trình truy cập, đừng ngần ngại trả lời email này hoặc liên hệ hotline: 0123-456-789.</p>
                 <p>Chúc bạn có những trải nghiệm học tập tuyệt vời!</p>
@@ -144,7 +144,7 @@ async function bootstrap() {
           name: data.name,
           event_type: data.event_type,
           is_deleted: false,
-        }
+        },
       );
 
       let automation;
@@ -159,17 +159,17 @@ async function bootstrap() {
         // Force active
         await (automationService as any).automationModel.updateOne(
           { _id: automation._id },
-          { is_active: true }
+          { is_active: true },
         );
       } else {
         console.log(
-          `[SEED-EMAIL] Automation ${data.name} already exists. Updating steps.`
+          `[SEED-EMAIL] Automation ${data.name} already exists. Updating steps.`,
         );
         automation = existing;
         // Optionally update description if it changed
         await (automationService as any).automationModel.updateOne(
           { _id: automation._id },
-          { description: data.description, is_active: true }
+          { description: data.description, is_active: true },
         );
         // Clear existing steps for this automation
         await (automationService as any).stepModel.deleteMany({
@@ -179,7 +179,7 @@ async function bootstrap() {
 
       for (const stepData of data.steps) {
         console.log(
-          `[SEED-EMAIL] Adding step ${stepData.step_order} to ${data.name}`
+          `[SEED-EMAIL] Adding step ${stepData.step_order} to ${data.name}`,
         );
         await automationService.addStep({
           automation_id: (automation as any)._id.toString(),
@@ -191,7 +191,7 @@ async function bootstrap() {
   } catch (error) {
     console.error(
       "[SEED-EMAIL] Error seeding email automations:",
-      error.message
+      error.message,
     );
   } finally {
     await app.close();

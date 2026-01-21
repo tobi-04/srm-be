@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { OnEvent } from "@nestjs/event-emitter";
 import { InjectQueue } from "@nestjs/bullmq";
+import { ConfigService } from "@nestjs/config";
 import { Queue } from "bullmq";
 import { EventType } from "../entities/email-automation.entity";
 import { EmailAutomationService } from "../services/email-automation.service";
@@ -41,7 +42,8 @@ export class EmailAutomationEventListener {
   constructor(
     @InjectQueue("email-automation")
     private emailQueue: Queue,
-    private automationService: EmailAutomationService
+    private automationService: EmailAutomationService,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -59,8 +61,12 @@ export class EmailAutomationEventListener {
   @OnEvent("course.purchased")
   async handleCoursePurchased(payload: CoursePurchasedEvent) {
     this.logger.log(
-      `Course purchased event received: user ${payload.userId}, course ${payload.courseId}`
+      `Course purchased event received: user ${payload.userId}, course ${payload.courseId}`,
     );
+    const frontendUrl =
+      this.configService.get<string>("FRONTEND_URL") || "http://localhost:5173";
+    const learningUrl = `${frontendUrl}/learn/${payload.courseId}`;
+
     await this.processEvent(EventType.COURSE_PURCHASED, {
       ...payload,
       user: {
@@ -71,6 +77,7 @@ export class EmailAutomationEventListener {
       course: {
         title: payload.courseTitle,
         id: payload.courseId,
+        learning_url: learningUrl,
       },
       order: {
         amount: payload.amount,
@@ -87,11 +94,11 @@ export class EmailAutomationEventListener {
   @OnEvent("user.registered.no.purchase")
   async handleUserRegisteredNoPurchase(payload: UserRegisteredNoPurchaseEvent) {
     this.logger.log(
-      `User registered but not purchased event received: ${payload.userId}`
+      `User registered but not purchased event received: ${payload.userId}`,
     );
     await this.processEvent(
       EventType.USER_REGISTERED_BUT_NOT_PURCHASED,
-      payload
+      payload,
     );
   }
 
@@ -110,17 +117,17 @@ export class EmailAutomationEventListener {
       }
 
       this.logger.log(
-        `Found ${automations.length} active automation(s) for event ${eventType}`
+        `Found ${automations.length} active automation(s) for event ${eventType}`,
       );
 
       // For each automation, create jobs for all steps
       for (const automation of automations) {
         const steps = await this.automationService.getSteps(
-          automation._id.toString()
+          automation._id.toString(),
         );
 
         this.logger.log(
-          `Creating ${steps.length} email job(s) for automation ${automation.name}`
+          `Creating ${steps.length} email job(s) for automation ${automation.name}`,
         );
 
         for (const step of steps) {
@@ -149,7 +156,7 @@ export class EmailAutomationEventListener {
           });
 
           this.logger.log(
-            `Email job queued for automation ${automation.name}, step ${step.step_order}, delay ${step.delay_minutes} minutes`
+            `Email job queued for automation ${automation.name}, step ${step.step_order}, delay ${step.delay_minutes} minutes`,
           );
         }
       }

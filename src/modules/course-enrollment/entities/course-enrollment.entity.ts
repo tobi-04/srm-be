@@ -35,6 +35,18 @@ export class CourseEnrollment extends BaseEntity {
 
   @Prop({ type: Object, default: {} })
   metadata?: Record<string, any>;
+
+  @Prop({ type: Number, default: 0, index: true })
+  progress_percent: number;
+
+  @Prop({ type: Number, default: 0 })
+  completed_lessons_count: number;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Lesson" })
+  current_lesson_id?: string;
+
+  @Prop({ type: Date, default: Date.now, index: true })
+  last_activity_at: Date;
 }
 
 export type CourseEnrollmentDocument = HydratedDocument<CourseEnrollment>;

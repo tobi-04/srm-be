@@ -17,6 +17,16 @@ import { PaymentModule } from "./modules/payment/payment.module";
 import { PaymentTransactionModule } from "./modules/payment-transaction/payment-transaction.module";
 import { CourseEnrollmentModule } from "./modules/course-enrollment/course-enrollment.module";
 import { EmailAutomationModule } from "./modules/email-automation/email-automation.module";
+import { TrafficSourceModule } from "./modules/traffic-source/traffic-source.module";
+import { SessionModule } from "./modules/session/session.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { StudentModule } from "./modules/student/student.module";
+import { SalerDetailsModule } from "./modules/saler-details/saler-details.module";
+import { OrderModule } from "./modules/order/order.module";
+import { CommissionModule } from "./modules/commission/commission.module";
+import { SalerKPIModule } from "./modules/saler-kpi/saler-kpi.module";
+import { SalerModule } from "./modules/saler/saler.module";
+import { WithdrawalModule } from "./modules/withdrawal/withdrawal.module";
 import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
 
 @Module({
@@ -25,7 +35,7 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
       isGlobal: true,
     }),
     MongooseModule.forRoot(
-      process.env.MONGODB_URI || "mongodb://localhost:27017/srm-lesson"
+      process.env.MONGODB_URI || "mongodb://localhost:27017/srm-lesson",
     ),
     BullModule.forRoot({
       connection: {
@@ -47,6 +57,16 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
     PaymentTransactionModule,
     CourseEnrollmentModule,
     EmailAutomationModule,
+    TrafficSourceModule,
+    SessionModule,
+    AnalyticsModule,
+    StudentModule,
+    SalerDetailsModule,
+    OrderModule,
+    CommissionModule,
+    SalerKPIModule,
+    SalerModule,
+    WithdrawalModule,
   ],
   controllers: [AppController],
   providers: [AppService],

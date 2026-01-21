@@ -29,6 +29,29 @@ export class UserFormSubmission extends BaseEntity {
   // Additional metadata if needed
   @Prop({ type: Object, default: {} })
   metadata?: Record<string, any>;
+
+  // UTM Tracking - traffic source reference
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "TrafficSource",
+    required: false,
+  })
+  traffic_source_id?: string;
+
+  // Session ID when form was submitted
+  @Prop({ required: false })
+  session_id?: string;
+
+  // Saler attribution
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "User",
+    required: false,
+  })
+  saler_id?: string;
+
+  @Prop({ required: false })
+  referral_code?: string;
 }
 
 export type UserFormSubmissionDocument = HydratedDocument<UserFormSubmission>;
@@ -38,5 +61,6 @@ export const UserFormSubmissionSchema =
 // Add indexes for efficient querying
 UserFormSubmissionSchema.index({ landing_page_id: 1 });
 UserFormSubmissionSchema.index({ email: 1 });
+UserFormSubmissionSchema.index({ saler_id: 1, created_at: -1 }); // For saler orders query
 UserFormSubmissionSchema.index({ created_at: -1 });
 UserFormSubmissionSchema.index({ is_deleted: 1 });
