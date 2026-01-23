@@ -340,4 +340,87 @@ export class AnalyticsService {
       limit,
     };
   }
+
+  /**
+   * Get daily sales snapshot for the last N days
+   */
+  async getDailySalesSnapshot(days: number = 14) {
+    const endDate = dayjs().endOf("day").toDate();
+    const startDate = dayjs().subtract(days - 1, "day").startOf("day").toDate();
+
+    const dailyData = await this.paymentTransactionModel.aggregate([
+      {
+        $match: {
+          status: PaymentTransactionStatus.COMPLETED,
+          paid_at: { $gte: startDate, $lte: endDate },
+          is_deleted: false,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$paid_at" },
+          },
+          revenue: { $sum: "$amount" },
+        },
+      },
+      { $sort: { _id: -1 } },
+    ]);
+
+    // Create map of existing data
+    const dataMap = new Map(dailyData.map(d => [d._id, d.revenue]));
+
+    // Generate all days in range with data
+    const result = [];
+    for (let i = 0; i < days; i++) {
+      const date = dayjs().subtract(i, "day");
+      const dateStr = date.format("YYYY-MM-DD");
+      result.push({
+        date: dateStr,
+        dayOfWeek: date.format("ddd"),
+        revenue: dataMap.get(dateStr) || 0,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Get weekly sales snapshot for the last N weeks
+   */
+  async getWeeklySalesSnapshot(weeks: number = 4) {
+    const result = [];
+
+    for (let i = 0; i < weeks; i++) {
+      const weekEnd = dayjs().subtract(i * 7, "day").endOf("day");
+      const weekStart = weekEnd.subtract(6, "day").startOf("day");
+
+      const weekRevenue = await this.paymentTransactionModel.aggregate([
+        {
+          $match: {
+            status: PaymentTransactionStatus.COMPLETED,
+            paid_at: {
+              $gte: weekStart.toDate(),
+              $lte: weekEnd.toDate(),
+            },
+            is_deleted: false,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            revenue: { $sum: "$amount" },
+          },
+        },
+      ]);
+
+      result.push({
+        weekEnding: weekEnd.format("YYYY-MM-DD"),
+        weekLabel: `${weekStart.format("YYYY-MM-DD")} - ${weekEnd.format("YYYY-MM-DD")}`,
+        revenue: weekRevenue[0]?.revenue || 0,
+      });
+    }
+
+    return result.reverse();
+  }
 }

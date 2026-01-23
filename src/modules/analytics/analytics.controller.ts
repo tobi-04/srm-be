@@ -32,6 +32,18 @@ export class AnalyticsController {
     return this.analyticsService.getRecentPayments();
   }
 
+  @Get("dashboard/daily-sales")
+  async getDailySalesSnapshot(@Query("days") days?: string) {
+    const daysNum = days ? parseInt(days) : 14;
+    return this.analyticsService.getDailySalesSnapshot(daysNum);
+  }
+
+  @Get("dashboard/weekly-sales")
+  async getWeeklySalesSnapshot(@Query("weeks") weeks?: string) {
+    const weeksNum = weeks ? parseInt(weeks) : 4;
+    return this.analyticsService.getWeeklySalesSnapshot(weeksNum);
+  }
+
   @Get("student-progress/summary")
   async getProgressSummary() {
     return this.analyticsService.getProgressSummary();
