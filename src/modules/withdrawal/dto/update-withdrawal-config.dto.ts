@@ -31,4 +31,26 @@ export class UpdateWithdrawalConfigDto {
   @IsBoolean()
   @IsOptional()
   is_active?: boolean;
+
+  @ApiProperty({
+    description: "Start day of month for withdrawal period (1-31)",
+    example: 1,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  @Max(31)
+  withdrawal_start_day?: number;
+
+  @ApiProperty({
+    description: "End day of month for withdrawal period (1-31)",
+    example: 10,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  @Max(31)
+  withdrawal_end_day?: number;
 }

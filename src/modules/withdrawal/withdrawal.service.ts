@@ -104,6 +104,18 @@ export class WithdrawalService {
       throw new BadRequestException("Chức năng rút tiền đang tạm dừng");
     }
 
+    // Check withdrawal timeframe (day of month)
+    const now = new Date();
+    const currentDay = now.getDate();
+    const startDay = config.withdrawal_start_day || 1;
+    const endDay = config.withdrawal_end_day || 31;
+
+    if (currentDay < startDay || currentDay > endDay) {
+      throw new BadRequestException(
+        `Yêu cầu rút tiền chỉ được thực hiện từ ngày ${startDay} đến ngày ${endDay} hàng tháng`,
+      );
+    }
+
     // Check minimum amount
     if (dto.amount < config.min_withdrawal_amount) {
       throw new BadRequestException(
