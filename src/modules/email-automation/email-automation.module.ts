@@ -23,6 +23,7 @@ import {
 import { EmailProviderService } from "./services/email-provider.service";
 import { EmailTemplateService } from "./services/email-template.service";
 import { EmailAutomationService } from "./services/email-automation.service";
+import { EmailSchedulerService } from "./services/email-scheduler.service";
 import { EmailAutomationController } from "./email-automation.controller";
 import { EmailAutomationProcessor } from "./processors/email-automation.processor";
 import { EmailAutomationEventListener } from "./listeners/email-automation-event.listener";
@@ -47,6 +48,7 @@ import { EmailAutomationEventListener } from "./listeners/email-automation-event
     EmailProviderService,
     EmailTemplateService,
     EmailAutomationService,
+    EmailSchedulerService,
     EmailAutomationProcessor,
     EmailAutomationEventListener,
   ],

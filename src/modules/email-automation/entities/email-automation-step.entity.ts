@@ -10,8 +10,11 @@ export class EmailAutomationStep extends BaseEntity {
   @Prop({ required: true })
   step_order: number;
 
-  @Prop({ required: true, default: 0 })
-  delay_minutes: number;
+  @Prop({ required: false, default: 0 })
+  delay_minutes?: number;
+
+  @Prop({ required: false, type: Date })
+  scheduled_at?: Date;
 
   @Prop({ required: true })
   subject_template: string;
@@ -27,3 +30,4 @@ export const EmailAutomationStepSchema =
 // Add indexes
 EmailAutomationStepSchema.index({ automation_id: 1, step_order: 1 });
 EmailAutomationStepSchema.index({ is_deleted: 1 });
+EmailAutomationStepSchema.index({ scheduled_at: 1 }); // Index for scheduled queries

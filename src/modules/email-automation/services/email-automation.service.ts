@@ -250,6 +250,17 @@ export class EmailAutomationService {
    * Add step to automation
    */
   async addStep(dto: CreateStepDto): Promise<EmailAutomationStepDocument> {
+    // Validate that at least one scheduling method is provided
+    if (
+      dto.delay_minutes === undefined &&
+      dto.delay_minutes !== 0 &&
+      !dto.scheduled_at
+    ) {
+      throw new BadRequestException(
+        "Either delay_minutes or scheduled_at must be provided",
+      );
+    }
+
     // Validate automation exists
     await this.getAutomationById(dto.automation_id);
 
@@ -272,13 +283,20 @@ export class EmailAutomationService {
       );
     }
 
-    const step = new this.stepModel({
+    // Convert scheduled_at string to Date if provided
+    const stepData: any = {
       ...dto,
       automation_id: new Types.ObjectId(dto.automation_id),
       created_at: new Date(),
       updated_at: new Date(),
       is_deleted: false,
-    });
+    };
+
+    if (dto.scheduled_at) {
+      stepData.scheduled_at = new Date(dto.scheduled_at);
+    }
+
+    const step = new this.stepModel(stepData);
 
     return step.save();
   }
@@ -341,9 +359,15 @@ export class EmailAutomationService {
       }
     }
 
+    // Convert scheduled_at string to Date if provided
+    const updateData: any = { ...dto, updated_at: new Date() };
+    if (dto.scheduled_at) {
+      updateData.scheduled_at = new Date(dto.scheduled_at);
+    }
+
     const step = await this.stepModel.findOneAndUpdate(
       { _id: id, is_deleted: false },
-      { ...dto, updated_at: new Date() },
+      updateData,
       { new: true },
     );
 

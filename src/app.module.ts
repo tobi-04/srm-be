@@ -3,6 +3,7 @@ import { MongooseModule } from "@nestjs/mongoose";
 import { ConfigModule } from "@nestjs/config";
 import { BullModule } from "@nestjs/bullmq";
 import { EventEmitterModule } from "@nestjs/event-emitter";
+import { ScheduleModule } from "@nestjs/schedule";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { RedisCacheModule } from "./common/cache/redis-cache.module";
@@ -45,6 +46,7 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
       },
     }),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     RedisCacheModule,
     R2Module,
     UserModule,

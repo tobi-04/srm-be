@@ -242,6 +242,18 @@ export class EmailAutomationProcessor extends WorkerHost {
 
       for (const userId of userIds) {
         for (const step of steps) {
+          // Calculate delay based on scheduled_at or delay_minutes
+          let delayMs = 0;
+          if (step.scheduled_at) {
+            // If scheduled_at is set, calculate delay from now
+            const scheduledTime = new Date(step.scheduled_at).getTime();
+            const now = Date.now();
+            delayMs = Math.max(0, scheduledTime - now);
+          } else if (step.delay_minutes !== undefined) {
+            // Fallback to legacy delay_minutes
+            delayMs = step.delay_minutes * 60 * 1000;
+          }
+
           await this.emailQueue.add(
             "email-job",
             {
@@ -254,7 +266,7 @@ export class EmailAutomationProcessor extends WorkerHost {
               },
             },
             {
-              delay: step.delay_minutes * 60 * 1000,
+              delay: delayMs,
               attempts: 3,
               backoff: {
                 type: "exponential",
