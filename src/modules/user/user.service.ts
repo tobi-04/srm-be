@@ -14,6 +14,7 @@ import {
   CourseEnrollmentDocument,
 } from "../course-enrollment/entities/course-enrollment.entity";
 import { SalerDetailsService } from "../saler-details/saler-details.service";
+import { RedisCacheService } from "../../common/cache/redis-cache.service";
 import * as bcrypt from "bcryptjs";
 
 @Injectable()
@@ -24,6 +25,7 @@ export class UserService {
     @InjectModel(CourseEnrollment.name)
     private readonly enrollmentModel: Model<CourseEnrollmentDocument>,
     private readonly salerDetailsService: SalerDetailsService,
+    private readonly cacheService: RedisCacheService,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
@@ -235,6 +237,198 @@ export class UserService {
   }
 
   /**
+   * Get student details with courses, progress, and order history
+   * Optimized with single aggregation pipeline - O(1) complexity
+   * Uses caching for better performance
+   */
+  async getStudentDetails(userId: string) {
+    const cacheKey = this.cacheService.generateKey("student-details", userId);
+
+    // Try to get from cache first
+    const cached = await this.cacheService.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const user = await this.userRepository.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException("Student not found");
+    }
+
+    if (user.role !== UserRole.USER) {
+      throw new NotFoundException("User is not a student");
+    }
+
+    // Use aggregation pipeline for optimal performance - single query
+    const pipeline: any[] = [
+      { $match: { _id: user._id } },
+      // Lookup enrollments
+      {
+        $lookup: {
+          from: "course_enrollments",
+          let: { userId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$user_id", "$$userId"] },
+                is_deleted: false,
+              },
+            },
+            // Join with courses
+            {
+              $lookup: {
+                from: "courses",
+                localField: "course_id",
+                foreignField: "_id",
+                as: "course",
+              },
+            },
+            {
+              $unwind: {
+                path: "$course",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $project: {
+                course_id: "$course._id",
+                course_title: "$course.title",
+                enrolled_at: 1,
+                status: 1,
+                progress_percent: 1,
+                completed_lessons_count: 1,
+                last_activity_at: 1,
+              },
+            },
+          ],
+          as: "enrollments",
+        },
+      },
+      // Lookup orders via UserFormSubmission and PaymentTransaction
+      {
+        $lookup: {
+          from: "user_form_submissions",
+          let: { userEmail: "$email" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$email", "$$userEmail"] },
+                is_deleted: false,
+              },
+            },
+            // Join with PaymentTransaction
+            {
+              $lookup: {
+                from: "payment_transactions",
+                localField: "_id",
+                foreignField: "user_form_submission_id",
+                pipeline: [
+                  {
+                    $match: {
+                      is_deleted: false,
+                    },
+                  },
+                  // Join with Course to get title
+                  {
+                    $lookup: {
+                      from: "courses",
+                      localField: "course_id",
+                      foreignField: "_id",
+                      as: "course",
+                    },
+                  },
+                  {
+                    $unwind: {
+                      path: "$course",
+                      preserveNullAndEmptyArrays: true,
+                    },
+                  },
+                  {
+                    $project: {
+                      order_id: "$_id",
+                      course_title: "$course.title",
+                      amount: 1,
+                      status: 1,
+                      paid_at: 1,
+                      created_at: 1,
+                    },
+                  },
+                ],
+                as: "transactions",
+              },
+            },
+            { $unwind: "$transactions" },
+            { $replaceRoot: { newRoot: "$transactions" } },
+            { $sort: { created_at: -1 } },
+          ],
+          as: "orders",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          is_active: 1,
+          created_at: 1,
+          enrollments: 1,
+          orders: 1,
+        },
+      },
+    ];
+
+    const [result] = await this.userModel.aggregate(pipeline);
+
+    if (!result) {
+      throw new NotFoundException("Student not found");
+    }
+
+    const response = {
+      student: {
+        _id: result._id,
+        name: result.name,
+        email: result.email,
+        is_active: result.is_active,
+        created_at: result.created_at,
+      },
+      enrollments: result.enrollments || [],
+      orders: result.orders || [],
+      summary: {
+        total_courses: result.enrollments?.length || 0,
+        total_orders: result.orders?.length || 0,
+        avg_progress:
+          result.enrollments?.length > 0
+            ? Math.round(
+                result.enrollments.reduce(
+                  (sum: number, e: any) => sum + (e.progress_percent || 0),
+                  0,
+                ) / result.enrollments.length,
+              )
+            : 0,
+        total_spent:
+          result.orders
+            ?.filter((o: any) => o.status === "completed")
+            .reduce((sum: number, o: any) => sum + (o.amount || 0), 0) || 0,
+      },
+    };
+
+    // Cache the result for 5 minutes (300 seconds)
+    await this.cacheService.set(cacheKey, response, 300);
+
+    return response;
+  }
+
+  /**
+   * Clear student details cache
+   * Called after CUD operations that affect student data
+   */
+  async clearStudentDetailsCache(userId: string) {
+    const cacheKey = this.cacheService.generateKey("student-details", userId);
+    await this.cacheService.del(cacheKey);
+  }
+
+  /**
    * Create a new saler account with must_change_password = true
    * Also creates saler_details with unique code_saler
    */
@@ -301,6 +495,9 @@ export class UserService {
       throw new NotFoundException("User not found");
     }
 
+    // Clear cache for student details
+    await this.clearStudentDetailsCache(id);
+
     const { password, ...result } = (user as any).toObject();
     return result;
   }
@@ -312,12 +509,19 @@ export class UserService {
       throw new NotFoundException("User not found");
     }
 
+    // Clear cache for student details
+    await this.clearStudentDetailsCache(id);
+
     return { message: "User deleted successfully" };
   }
 
   async removeMany(ids: string[]) {
     const deletePromises = ids.map((id) => this.userRepository.deleteById(id));
     await Promise.all(deletePromises);
+
+    // Clear cache for all affected students
+    await Promise.all(ids.map((id) => this.clearStudentDetailsCache(id)));
+
     return { message: `${ids.length} users deleted successfully` };
   }
 
@@ -327,6 +531,9 @@ export class UserService {
     if (!user) {
       throw new NotFoundException("User not found");
     }
+
+    // Clear cache for student details
+    await this.clearStudentDetailsCache(id);
 
     const { password, ...result } = (user as any).toObject();
     return result;
@@ -346,6 +553,9 @@ export class UserService {
       is_active: !user.is_active,
     } as any);
 
+    // Clear cache for student details
+    await this.clearStudentDetailsCache(id);
+
     const { password, ...result } = (updated as any).toObject();
     return result;
   }
@@ -358,6 +568,9 @@ export class UserService {
       { _id: { $in: ids }, is_deleted: false },
       { is_active: setActive, updated_at: new Date() },
     );
+
+    // Clear cache for all affected students
+    await Promise.all(ids.map((id) => this.clearStudentDetailsCache(id)));
 
     // Invalidate cache
     await this.userRepository["invalidateCache"]();
@@ -380,6 +593,9 @@ export class UserService {
       throw new NotFoundException("User not found");
     }
 
+    // Clear cache for student details
+    await this.clearStudentDetailsCache(id);
+
     return { message: "User permanently deleted" };
   }
 
@@ -389,7 +605,11 @@ export class UserService {
   async hardDeleteMany(ids: string[]) {
     const result = await this.userModel.deleteMany({ _id: { $in: ids } });
 
+    // Clear cache for all affected students
+    await Promise.all(ids.map((id) => this.clearStudentDetailsCache(id)));
+
     // Invalidate cache
+    await this.userRepository["invalidateCache"]();
     await this.userRepository["invalidateCache"]();
 
     return {
