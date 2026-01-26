@@ -120,6 +120,7 @@ export class EmailSchedulerService {
       // Get target users using the EmailAutomationService (which has proper logic)
       const userIds = await this.automationService.getTargetUserIds(
         automation.target_group,
+        automation.traffic_sources,
       );
 
       if (userIds.length === 0) {

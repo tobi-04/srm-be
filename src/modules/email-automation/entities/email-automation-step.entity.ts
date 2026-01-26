@@ -13,6 +13,9 @@ export class EmailAutomationStep extends BaseEntity {
   @Prop({ required: false, default: 0 })
   delay_minutes?: number;
 
+  @Prop({ required: false, default: 0 })
+  delay_days?: number;
+
   @Prop({ required: false, type: Date })
   scheduled_at?: Date;
 

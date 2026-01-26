@@ -138,13 +138,16 @@ export class EmailAutomationEventListener {
             eventData,
           };
 
-          // Calculate delay based on scheduled_at or delay_minutes
+          // Calculate delay based on scheduled_at, delay_days or delay_minutes
           let delayMs = 0;
           if (step.scheduled_at) {
             // If scheduled_at is set, calculate delay from now
             const scheduledTime = new Date(step.scheduled_at).getTime();
             const now = Date.now();
             delayMs = Math.max(0, scheduledTime - now);
+          } else if (step.delay_days !== undefined && step.delay_days > 0) {
+            // New logic: Delay relative to event time (now) in days
+            delayMs = step.delay_days * 24 * 60 * 60 * 1000;
           } else if (step.delay_minutes !== undefined) {
             // Fallback to legacy delay_minutes
             delayMs = step.delay_minutes * 60 * 1000;

@@ -44,6 +44,9 @@ export class EmailAutomation extends BaseEntity {
   @Prop({ type: String, enum: TargetGroup, required: false })
   target_group: TargetGroup;
 
+  @Prop({ type: [String], default: [] })
+  traffic_sources: string[]; // facebook, youtube, tiktok, ads, google, etc.
+
   @Prop({ default: false })
   is_active: boolean;
 

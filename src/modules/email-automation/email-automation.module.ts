@@ -20,6 +20,10 @@ import {
   CourseEnrollment,
   CourseEnrollmentSchema,
 } from "../course-enrollment/entities/course-enrollment.entity";
+import {
+  TrafficSource,
+  TrafficSourceSchema,
+} from "../traffic-source/entities/traffic-source.entity";
 import { EmailProviderService } from "./services/email-provider.service";
 import { EmailTemplateService } from "./services/email-template.service";
 import { EmailAutomationService } from "./services/email-automation.service";
@@ -38,6 +42,7 @@ import { EmailAutomationEventListener } from "./listeners/email-automation-event
       { name: Payment.name, schema: PaymentSchema },
       { name: UserFormSubmission.name, schema: UserFormSubmissionSchema },
       { name: CourseEnrollment.name, schema: CourseEnrollmentSchema },
+      { name: TrafficSource.name, schema: TrafficSourceSchema },
     ]),
     BullModule.registerQueue({
       name: "email-automation",

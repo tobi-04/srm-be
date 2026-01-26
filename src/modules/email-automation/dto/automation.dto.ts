@@ -38,6 +38,11 @@ export class CreateAutomationDto {
   @IsOptional()
   target_group?: TargetGroup;
 
+  @ApiProperty({ type: [String], required: false })
+  @IsString({ each: true })
+  @IsOptional()
+  traffic_sources?: string[];
+
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
@@ -69,6 +74,11 @@ export class UpdateAutomationDto {
   @IsEnum(TargetGroup)
   @IsOptional()
   target_group?: TargetGroup;
+
+  @ApiProperty({ type: [String], required: false })
+  @IsString({ each: true })
+  @IsOptional()
+  traffic_sources?: string[];
 
   @ApiProperty({ required: false })
   @IsOptional()

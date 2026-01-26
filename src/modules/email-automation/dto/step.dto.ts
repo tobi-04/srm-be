@@ -27,6 +27,16 @@ export class CreateStepDto {
   delay_minutes?: number;
 
   @ApiProperty({
+    example: 0,
+    description: "Delay in days for event-based sending.",
+    required: false,
+  })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  delay_days?: number;
+
+  @ApiProperty({
     example: "2026-01-24T14:30:00.000Z",
     description:
       "ISO datetime string for scheduled sending. Either this or delay_minutes must be provided.",
@@ -70,6 +80,16 @@ export class UpdateStepDto {
   @Min(0)
   @IsOptional()
   delay_minutes?: number;
+
+  @ApiProperty({
+    example: 0,
+    description: "Delay in days for event-based sending.",
+    required: false,
+  })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  delay_days?: number;
 
   @ApiProperty({
     example: "2026-01-24T14:30:00.000Z",
