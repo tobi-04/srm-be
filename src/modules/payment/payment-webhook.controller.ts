@@ -91,11 +91,29 @@ export class PaymentWebhookController {
       }
     }
 
-    if (!transferCode || !transferCode.startsWith(systemCode)) {
+    if (
+      !transferCode ||
+      (!transferCode.startsWith(systemCode) && !transferCode.startsWith("BZLP"))
+    ) {
       this.logger.error(
         `❌ No valid transfer code found in code or content. Content: ${webhookData.content}`,
       );
       throw new BadRequestException("Invalid or missing transfer code");
+    }
+
+    // Handle Book Order
+    if (transferCode.startsWith("BZLP")) {
+      this.logger.log(`📚 Found Book Order transfer code: ${transferCode}`);
+      // Emit event for BookOrderService to handle
+      this.eventEmitter.emit("book.payment.confirmed", {
+        transferCode,
+        sepayTransactionId: webhookData.id.toString(),
+        amount: webhookData.transferAmount,
+      });
+      return {
+        success: true,
+        message: "Book payment event emitted",
+      };
     }
 
     let transaction;

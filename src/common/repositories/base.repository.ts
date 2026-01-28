@@ -1,13 +1,13 @@
-import { Model, FilterQuery, UpdateQuery, Types } from 'mongoose';
-import { BaseEntity } from '../entities/base.entity';
-import { RedisCacheService } from '../cache/redis-cache.service';
+import { Model, FilterQuery, UpdateQuery, Types } from "mongoose";
+import { BaseEntity } from "../entities/base.entity";
+import { RedisCacheService } from "../cache/redis-cache.service";
 import {
   PaginatedResult,
   PaginateOptions,
   FindOptions,
   RepositoryOptions,
-} from '../interfaces/repository.interface';
-import { NotFoundException } from '@nestjs/common';
+} from "../interfaces/repository.interface";
+import { NotFoundException } from "@nestjs/common";
 
 export abstract class BaseRepository<T extends BaseEntity> {
   protected abstract readonly model: Model<T>;
@@ -28,8 +28,8 @@ export abstract class BaseRepository<T extends BaseEntity> {
     const {
       page = 1,
       limit = 10,
-      sort = 'created_at',
-      order = 'desc',
+      sort = "created_at",
+      order = "desc",
       search,
       searchFields = [],
       useCache = true,
@@ -46,7 +46,7 @@ export abstract class BaseRepository<T extends BaseEntity> {
       limit.toString(),
       sort,
       order,
-      search || '',
+      search || "",
       includeDeleted.toString(),
     );
 
@@ -65,13 +65,13 @@ export abstract class BaseRepository<T extends BaseEntity> {
     }
 
     if (search && searchFields.length > 0) {
-      queryFilter.$or = searchFields.map(field => ({
-        [field]: { $regex: search, $options: 'i' },
+      queryFilter.$or = searchFields.map((field) => ({
+        [field]: { $regex: search, $options: "i" },
       })) as any;
     }
 
     const skip = (page - 1) * limit;
-    const sortOrder = order === 'asc' ? 1 : -1;
+    const sortOrder = order === "asc" ? 1 : -1;
 
     let query = this.model
       .find(queryFilter)
@@ -80,11 +80,11 @@ export abstract class BaseRepository<T extends BaseEntity> {
       .limit(limit);
 
     if (select) {
-      query = query.select(select.join(' '));
+      query = query.select(select.join(" "));
     }
 
     if (populate) {
-      populate.forEach(path => {
+      populate.forEach((path) => {
         query = query.populate(path);
       });
     }
@@ -139,11 +139,11 @@ export abstract class BaseRepository<T extends BaseEntity> {
     } as FilterQuery<T>);
 
     if (select) {
-      query = query.select(select.join(' '));
+      query = query.select(select.join(" "));
     }
 
     if (populate) {
-      populate.forEach(path => {
+      populate.forEach((path) => {
         query = query.populate(path);
       });
     }
@@ -182,11 +182,11 @@ export abstract class BaseRepository<T extends BaseEntity> {
     } as FilterQuery<T>);
 
     if (select) {
-      query = query.select(select.join(' '));
+      query = query.select(select.join(" "));
     }
 
     if (populate) {
-      populate.forEach(path => {
+      populate.forEach((path) => {
         query = query.populate(path);
       });
     }
@@ -225,11 +225,11 @@ export abstract class BaseRepository<T extends BaseEntity> {
     } as FilterQuery<T>);
 
     if (select) {
-      query = query.select(select.join(' '));
+      query = query.select(select.join(" "));
     }
 
     if (populate) {
-      populate.forEach(path => {
+      populate.forEach((path) => {
         query = query.populate(path);
       });
     }
@@ -246,10 +246,7 @@ export abstract class BaseRepository<T extends BaseEntity> {
   /**
    * Create a new document
    */
-  async create(
-    data: Partial<T>,
-    options: RepositoryOptions = {},
-  ): Promise<T> {
+  async create(data: Partial<T>, options: RepositoryOptions = {}): Promise<T> {
     const now = new Date();
     const document = new this.model({
       ...data,
@@ -273,7 +270,7 @@ export abstract class BaseRepository<T extends BaseEntity> {
     options: RepositoryOptions = {},
   ): Promise<T[]> {
     const now = new Date();
-    const documents = dataArray.map(data => ({
+    const documents = dataArray.map((data) => ({
       ...data,
       created_at: now,
       updated_at: now,
@@ -470,14 +467,14 @@ export abstract class BaseRepository<T extends BaseEntity> {
   /**
    * Invalidate all cache for this model
    */
-  protected async invalidateCache(): Promise<void> {
+  async invalidateCache(): Promise<void> {
     await this.cacheService.delByPattern(`${this.modelName}:*`);
   }
 
   /**
    * Invalidate cache for specific ID
    */
-  protected async invalidateCacheById(id: string): Promise<void> {
+  async invalidateCacheById(id: string): Promise<void> {
     await this.cacheService.del(
       this.cacheService.generateKey(`${this.modelName}:findById`, id),
     );

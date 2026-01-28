@@ -29,6 +29,7 @@ import { SalerKPIModule } from "./modules/saler-kpi/saler-kpi.module";
 import { SalerModule } from "./modules/saler/saler.module";
 import { WithdrawalModule } from "./modules/withdrawal/withdrawal.module";
 import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
+import { BookStoreModule } from "./modules/book-store/book-store.module";
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
     SalerKPIModule,
     SalerModule,
     WithdrawalModule,
+    BookStoreModule,
   ],
   controllers: [AppController],
   providers: [AppService],
