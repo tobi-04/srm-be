@@ -30,6 +30,8 @@ import { SalerModule } from "./modules/saler/saler.module";
 import { WithdrawalModule } from "./modules/withdrawal/withdrawal.module";
 import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
 import { BookStoreModule } from "./modules/book-store/book-store.module";
+import { IndicatorStoreModule } from "./modules/indicator-store/indicator-store.module";
+import { UploadModule } from "./modules/upload/upload.module";
 
 @Module({
   imports: [
@@ -71,6 +73,8 @@ import { BookStoreModule } from "./modules/book-store/book-store.module";
     SalerModule,
     WithdrawalModule,
     BookStoreModule,
+    IndicatorStoreModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],
