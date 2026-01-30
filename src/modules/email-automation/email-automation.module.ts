@@ -20,9 +20,14 @@ import {
   CourseEnrollment,
   CourseEnrollmentSchema,
 } from "../course-enrollment/entities/course-enrollment.entity";
+import {
+  TrafficSource,
+  TrafficSourceSchema,
+} from "../traffic-source/entities/traffic-source.entity";
 import { EmailProviderService } from "./services/email-provider.service";
 import { EmailTemplateService } from "./services/email-template.service";
 import { EmailAutomationService } from "./services/email-automation.service";
+import { EmailSchedulerService } from "./services/email-scheduler.service";
 import { EmailAutomationController } from "./email-automation.controller";
 import { EmailAutomationProcessor } from "./processors/email-automation.processor";
 import { EmailAutomationEventListener } from "./listeners/email-automation-event.listener";
@@ -37,6 +42,7 @@ import { EmailAutomationEventListener } from "./listeners/email-automation-event
       { name: Payment.name, schema: PaymentSchema },
       { name: UserFormSubmission.name, schema: UserFormSubmissionSchema },
       { name: CourseEnrollment.name, schema: CourseEnrollmentSchema },
+      { name: TrafficSource.name, schema: TrafficSourceSchema },
     ]),
     BullModule.registerQueue({
       name: "email-automation",
@@ -47,6 +53,7 @@ import { EmailAutomationEventListener } from "./listeners/email-automation-event
     EmailProviderService,
     EmailTemplateService,
     EmailAutomationService,
+    EmailSchedulerService,
     EmailAutomationProcessor,
     EmailAutomationEventListener,
   ],

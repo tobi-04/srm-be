@@ -138,9 +138,24 @@ export class EmailAutomationEventListener {
             eventData,
           };
 
+          // Calculate delay based on scheduled_at, delay_days or delay_minutes
+          let delayMs = 0;
+          if (step.scheduled_at) {
+            // If scheduled_at is set, calculate delay from now
+            const scheduledTime = new Date(step.scheduled_at).getTime();
+            const now = Date.now();
+            delayMs = Math.max(0, scheduledTime - now);
+          } else if (step.delay_days !== undefined && step.delay_days > 0) {
+            // New logic: Delay relative to event time (now) in days
+            delayMs = step.delay_days * 24 * 60 * 60 * 1000;
+          } else if (step.delay_minutes !== undefined) {
+            // Fallback to legacy delay_minutes
+            delayMs = step.delay_minutes * 60 * 1000;
+          }
+
           // Add job to queue with delay
           await this.emailQueue.add(`email-job`, jobData, {
-            delay: step.delay_minutes * 60 * 1000, // Convert minutes to milliseconds
+            delay: delayMs,
             attempts: 3, // Retry up to 3 times
             backoff: {
               type: "exponential",
@@ -156,7 +171,10 @@ export class EmailAutomationEventListener {
           });
 
           this.logger.log(
-            `Email job queued for automation ${automation.name}, step ${step.step_order}, delay ${step.delay_minutes} minutes`,
+            `Email job queued for automation ${automation.name}, step ${step.step_order}, ` +
+              (step.scheduled_at
+                ? `scheduled at ${step.scheduled_at}`
+                : `delay ${step.delay_minutes} minutes`),
           );
         }
       }

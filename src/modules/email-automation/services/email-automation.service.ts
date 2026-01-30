@@ -35,6 +35,10 @@ import {
   CourseEnrollmentDocument,
 } from "../../course-enrollment/entities/course-enrollment.entity";
 import {
+  TrafficSource,
+  TrafficSourceDocument,
+} from "../../traffic-source/entities/traffic-source.entity";
+import {
   CreateAutomationDto,
   UpdateAutomationDto,
 } from "../dto/automation.dto";
@@ -55,6 +59,8 @@ export class EmailAutomationService {
     private submissionModel: Model<UserFormSubmissionDocument>,
     @InjectModel(CourseEnrollment.name)
     private enrollmentModel: Model<CourseEnrollmentDocument>,
+    @InjectModel(TrafficSource.name)
+    private trafficSourceModel: Model<TrafficSourceDocument>,
     @InjectModel(EmailLog.name)
     private emailLogModel: Model<EmailLogDocument>,
     @InjectQueue("email-automation")
@@ -158,24 +164,36 @@ export class EmailAutomationService {
   }
 
   /**
-   * Get user IDs belonging to a target group
+   * Get user IDs belonging to a target group with optional traffic source filtering
    */
-  async getTargetUserIds(targetGroup: TargetGroup): Promise<string[]> {
+  async getTargetUserIds(
+    targetGroup: TargetGroup,
+    trafficSources?: string[],
+  ): Promise<string[]> {
+    const userFilter: any = {
+      role: UserRole.USER,
+      is_active: true,
+      is_deleted: false,
+    };
+
+    // Filter by traffic sources if provided
+    if (trafficSources && trafficSources.length > 0) {
+      const sourceIds = await this.trafficSourceModel.distinct("_id", {
+        utm_source: { $in: trafficSources },
+      });
+      userFilter.traffic_source_id = { $in: sourceIds };
+    }
+
     switch (targetGroup) {
       case TargetGroup.ALL_STUDENTS: {
-        const users = await this.userModel.find({
-          role: UserRole.USER,
-          is_active: true,
-          is_deleted: false,
-        });
+        const users = await this.userModel.find(userFilter);
         return users.map((u) => u._id.toString());
       }
 
       case TargetGroup.SALERS: {
         const users = await this.userModel.find({
+          ...userFilter,
           role: UserRole.SALE,
-          is_active: true,
-          is_deleted: false,
         });
         return users.map((u) => u._id.toString());
       }
@@ -187,10 +205,8 @@ export class EmailAutomationService {
         });
 
         const users = await this.userModel.find({
+          ...userFilter,
           _id: { $in: enrolledUserIds },
-          role: UserRole.USER,
-          is_active: true,
-          is_deleted: false,
         });
         return users.map((u) => u._id.toString());
       }
@@ -202,10 +218,8 @@ export class EmailAutomationService {
         });
 
         const users = await this.userModel.find({
+          ...userFilter,
           _id: { $nin: enrolledUserIds },
-          role: UserRole.USER,
-          is_active: true,
-          is_deleted: false,
         });
         return users.map((u) => u._id.toString());
       }
@@ -250,6 +264,17 @@ export class EmailAutomationService {
    * Add step to automation
    */
   async addStep(dto: CreateStepDto): Promise<EmailAutomationStepDocument> {
+    // Validate that at least one scheduling method is provided
+    if (
+      dto.delay_minutes === undefined &&
+      dto.delay_minutes !== 0 &&
+      !dto.scheduled_at
+    ) {
+      throw new BadRequestException(
+        "Either delay_minutes or scheduled_at must be provided",
+      );
+    }
+
     // Validate automation exists
     await this.getAutomationById(dto.automation_id);
 
@@ -272,13 +297,20 @@ export class EmailAutomationService {
       );
     }
 
-    const step = new this.stepModel({
+    // Convert scheduled_at string to Date if provided
+    const stepData: any = {
       ...dto,
       automation_id: new Types.ObjectId(dto.automation_id),
       created_at: new Date(),
       updated_at: new Date(),
       is_deleted: false,
-    });
+    };
+
+    if (dto.scheduled_at) {
+      stepData.scheduled_at = new Date(dto.scheduled_at);
+    }
+
+    const step = new this.stepModel(stepData);
 
     return step.save();
   }
@@ -341,9 +373,15 @@ export class EmailAutomationService {
       }
     }
 
+    // Convert scheduled_at string to Date if provided
+    const updateData: any = { ...dto, updated_at: new Date() };
+    if (dto.scheduled_at) {
+      updateData.scheduled_at = new Date(dto.scheduled_at);
+    }
+
     const step = await this.stepModel.findOneAndUpdate(
       { _id: id, is_deleted: false },
-      { ...dto, updated_at: new Date() },
+      updateData,
       { new: true },
     );
 

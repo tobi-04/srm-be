@@ -3,6 +3,7 @@ import { MongooseModule } from "@nestjs/mongoose";
 import { ConfigModule } from "@nestjs/config";
 import { BullModule } from "@nestjs/bullmq";
 import { EventEmitterModule } from "@nestjs/event-emitter";
+import { ScheduleModule } from "@nestjs/schedule";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { RedisCacheModule } from "./common/cache/redis-cache.module";
@@ -28,6 +29,9 @@ import { SalerKPIModule } from "./modules/saler-kpi/saler-kpi.module";
 import { SalerModule } from "./modules/saler/saler.module";
 import { WithdrawalModule } from "./modules/withdrawal/withdrawal.module";
 import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
+import { BookStoreModule } from "./modules/book-store/book-store.module";
+import { IndicatorStoreModule } from "./modules/indicator-store/indicator-store.module";
+import { UploadModule } from "./modules/upload/upload.module";
 
 @Module({
   imports: [
@@ -45,6 +49,7 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
       },
     }),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     RedisCacheModule,
     R2Module,
     UserModule,
@@ -67,6 +72,9 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
     SalerKPIModule,
     SalerModule,
     WithdrawalModule,
+    BookStoreModule,
+    IndicatorStoreModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

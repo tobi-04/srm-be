@@ -32,6 +32,33 @@ export class AnalyticsController {
     return this.analyticsService.getRecentPayments();
   }
 
+  @Get("dashboard/transactions")
+  async getTransactions(
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+    @Query("status") status?: string,
+    @Query("search") search?: string,
+  ) {
+    return this.analyticsService.getTransactionsPaginated({
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
+      status,
+      search,
+    });
+  }
+
+  @Get("dashboard/daily-sales")
+  async getDailySalesSnapshot(@Query("days") days?: string) {
+    const daysNum = days ? parseInt(days) : 14;
+    return this.analyticsService.getDailySalesSnapshot(daysNum);
+  }
+
+  @Get("dashboard/weekly-sales")
+  async getWeeklySalesSnapshot(@Query("weeks") weeks?: string) {
+    const weeksNum = weeks ? parseInt(weeks) : 4;
+    return this.analyticsService.getWeeklySalesSnapshot(weeksNum);
+  }
+
   @Get("student-progress/summary")
   async getProgressSummary() {
     return this.analyticsService.getProgressSummary();

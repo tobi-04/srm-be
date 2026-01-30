@@ -21,6 +21,7 @@ import {
   CourseEnrollment,
   CourseEnrollmentDocument,
 } from "../course-enrollment/entities/course-enrollment.entity";
+import { Order, OrderDocument } from "../order/entities/order.entity";
 import dayjs from "dayjs";
 import { Types } from "mongoose";
 
@@ -37,6 +38,8 @@ export class AnalyticsService {
     private trafficSourceModel: Model<TrafficSourceDocument>,
     @InjectModel(CourseEnrollment.name)
     private enrollmentModel: Model<CourseEnrollmentDocument>,
+    @InjectModel(Order.name)
+    private orderModel: Model<OrderDocument>,
   ) {}
 
   async getDashboardSummary() {
@@ -203,6 +206,113 @@ export class AnalyticsService {
     });
   }
 
+  /**
+   * Get paginated payment transactions for Admin
+   */
+  async getTransactionsPaginated(query: {
+    page: number;
+    limit: number;
+    status?: string;
+    search?: string;
+  }) {
+    const { page, limit, status, search } = query;
+    const skip = (page - 1) * limit;
+
+    const match: any = { is_deleted: false };
+    if (status) {
+      match.status = status;
+    }
+
+    const pipeline: any[] = [{ $match: match }];
+
+    // Lookup Course
+    pipeline.push({
+      $lookup: {
+        from: "courses",
+        localField: "course_id",
+        foreignField: "_id",
+        as: "course",
+      },
+    });
+    pipeline.push({ $unwind: { path: "$course", preserveNullAndEmptyArrays: true } });
+
+    // Lookup UserFormSubmission (Student)
+    pipeline.push({
+      $lookup: {
+        from: "user_form_submissions",
+        localField: "user_form_submission_id",
+        foreignField: "_id",
+        as: "student",
+      },
+    });
+    pipeline.push({
+      $unwind: { path: "$student", preserveNullAndEmptyArrays: true },
+    });
+
+    // Lookup Saler from student submission
+    pipeline.push({
+      $lookup: {
+        from: "users",
+        localField: "student.saler_id",
+        foreignField: "_id",
+        as: "saler",
+      },
+    });
+    pipeline.push({
+      $unwind: { path: "$saler", preserveNullAndEmptyArrays: true },
+    });
+
+    // Search filter
+    if (search) {
+      const searchRegex = new RegExp(search, "i");
+      pipeline.push({
+        $match: {
+          $or: [
+            { "student.name": searchRegex },
+            { "student.email": searchRegex },
+            { "course.title": searchRegex },
+            { "saler.name": searchRegex },
+            { transfer_code: searchRegex },
+          ],
+        },
+      });
+    }
+
+    const countPipeline = [...pipeline, { $count: "total" }];
+
+    pipeline.push(
+      { $sort: { created_at: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+    );
+
+    const [data, countResult] = await Promise.all([
+      this.paymentTransactionModel.aggregate(pipeline).exec(),
+      this.paymentTransactionModel.aggregate(countPipeline).exec(),
+    ]);
+
+    const total = countResult[0]?.total || 0;
+
+    return {
+      data: data.map((item) => ({
+        ...item,
+        amount: item.amount,
+        status: item.status,
+        created_at: item.created_at || item._id.getTimestamp(),
+        paid_at: item.paid_at,
+        student: item.student,
+        course: item.course,
+        saler: item.saler,
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   async getProgressSummary() {
     const now = dayjs();
     const startOfDay = now.startOf("day").toDate();
@@ -339,5 +449,88 @@ export class AnalyticsService {
       page,
       limit,
     };
+  }
+
+  /**
+   * Get daily sales snapshot for the last N days
+   */
+  async getDailySalesSnapshot(days: number = 14) {
+    const endDate = dayjs().endOf("day").toDate();
+    const startDate = dayjs().subtract(days - 1, "day").startOf("day").toDate();
+
+    const dailyData = await this.paymentTransactionModel.aggregate([
+      {
+        $match: {
+          status: PaymentTransactionStatus.COMPLETED,
+          paid_at: { $gte: startDate, $lte: endDate },
+          is_deleted: false,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$paid_at" },
+          },
+          revenue: { $sum: "$amount" },
+        },
+      },
+      { $sort: { _id: -1 } },
+    ]);
+
+    // Create map of existing data
+    const dataMap = new Map(dailyData.map(d => [d._id, d.revenue]));
+
+    // Generate all days in range with data
+    const result = [];
+    for (let i = 0; i < days; i++) {
+      const date = dayjs().subtract(i, "day");
+      const dateStr = date.format("YYYY-MM-DD");
+      result.push({
+        date: dateStr,
+        dayOfWeek: date.format("ddd"),
+        revenue: dataMap.get(dateStr) || 0,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Get weekly sales snapshot for the last N weeks
+   */
+  async getWeeklySalesSnapshot(weeks: number = 4) {
+    const result = [];
+
+    for (let i = 0; i < weeks; i++) {
+      const weekEnd = dayjs().subtract(i * 7, "day").endOf("day");
+      const weekStart = weekEnd.subtract(6, "day").startOf("day");
+
+      const weekRevenue = await this.paymentTransactionModel.aggregate([
+        {
+          $match: {
+            status: PaymentTransactionStatus.COMPLETED,
+            paid_at: {
+              $gte: weekStart.toDate(),
+              $lte: weekEnd.toDate(),
+            },
+            is_deleted: false,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            revenue: { $sum: "$amount" },
+          },
+        },
+      ]);
+
+      result.push({
+        weekEnding: weekEnd.format("YYYY-MM-DD"),
+        weekLabel: `${weekStart.format("YYYY-MM-DD")} - ${weekEnd.format("YYYY-MM-DD")}`,
+        revenue: weekRevenue[0]?.revenue || 0,
+      });
+    }
+
+    return result.reverse();
   }
 }

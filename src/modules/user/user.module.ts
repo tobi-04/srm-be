@@ -9,6 +9,7 @@ import { UserController } from "./user.controller";
 import { UserService } from "./user.service";
 import { UserRepository } from "./user.repository";
 import { SalerDetailsModule } from "../saler-details/saler-details.module";
+import { RedisCacheModule } from "../../common/cache/redis-cache.module";
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { SalerDetailsModule } from "../saler-details/saler-details.module";
       { name: CourseEnrollment.name, schema: CourseEnrollmentSchema },
     ]),
     SalerDetailsModule,
+    RedisCacheModule,
   ],
   controllers: [UserController],
   providers: [UserService, UserRepository],

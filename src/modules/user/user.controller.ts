@@ -49,6 +49,18 @@ export class UserController {
     return this.userService.findStudents(paginationDto);
   }
 
+  @Get("students/:id/details")
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get student details with courses, progress, and orders" })
+  @ApiParam({ name: "id", type: String, example: "507f1f77bcf86cd799439011" })
+  @ApiResponse({ status: 200, description: "Student details retrieved successfully" })
+  @ApiResponse({ status: 404, description: "Student not found" })
+  async getStudentDetails(@Param("id") id: string) {
+    return this.userService.getStudentDetails(id);
+  }
+
   // ===== SALER ENDPOINTS =====
 
   @Get("salers")

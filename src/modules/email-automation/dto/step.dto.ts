@@ -4,6 +4,8 @@ import {
   IsNotEmpty,
   Min,
   IsOptional,
+  IsDateString,
+  ValidateIf,
 } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 
@@ -13,10 +15,36 @@ export class CreateStepDto {
   @Min(1)
   step_order: number;
 
-  @ApiProperty({ example: 0, description: "Delay in minutes (0 = immediate)" })
+  @ApiProperty({
+    example: 0,
+    description:
+      "Delay in minutes (0 = immediate). Legacy field. Either this or scheduled_at must be provided.",
+    required: false,
+  })
   @IsNumber()
   @Min(0)
-  delay_minutes: number;
+  @IsOptional()
+  delay_minutes?: number;
+
+  @ApiProperty({
+    example: 0,
+    description: "Delay in days for event-based sending.",
+    required: false,
+  })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  delay_days?: number;
+
+  @ApiProperty({
+    example: "2026-01-24T14:30:00.000Z",
+    description:
+      "ISO datetime string for scheduled sending. Either this or delay_minutes must be provided.",
+    required: false,
+  })
+  @IsDateString()
+  @IsOptional()
+  scheduled_at?: string;
 
   @ApiProperty({ example: "Welcome to {{user.name}}!" })
   @IsString()
@@ -40,18 +68,45 @@ export class UpdateStepDto {
   @ApiProperty({ example: 1, required: false })
   @IsNumber()
   @Min(1)
+  @IsOptional()
   step_order?: number;
 
-  @ApiProperty({ example: 1440, required: false })
+  @ApiProperty({
+    example: 1440,
+    required: false,
+    description: "Delay in minutes. Legacy field.",
+  })
   @IsNumber()
   @Min(0)
+  @IsOptional()
   delay_minutes?: number;
+
+  @ApiProperty({
+    example: 0,
+    description: "Delay in days for event-based sending.",
+    required: false,
+  })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  delay_days?: number;
+
+  @ApiProperty({
+    example: "2026-01-24T14:30:00.000Z",
+    description: "ISO datetime string for scheduled sending",
+    required: false,
+  })
+  @IsDateString()
+  @IsOptional()
+  scheduled_at?: string;
 
   @ApiProperty({ example: "Welcome to {{user.name}}!", required: false })
   @IsString()
+  @IsOptional()
   subject_template?: string;
 
   @ApiProperty({ example: "<h1>Hello {{user.name}}</h1>", required: false })
   @IsString()
+  @IsOptional()
   body_template?: string;
 }

@@ -20,6 +20,7 @@ import {
   CourseEnrollment,
   CourseEnrollmentSchema,
 } from "../course-enrollment/entities/course-enrollment.entity";
+import { Order, OrderSchema } from "../order/entities/order.entity";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import {
       { name: LessonProgress.name, schema: LessonProgressSchema },
       { name: TrafficSource.name, schema: TrafficSourceSchema },
       { name: CourseEnrollment.name, schema: CourseEnrollmentSchema },
+      { name: Order.name, schema: OrderSchema },
     ]),
   ],
   controllers: [AnalyticsController],

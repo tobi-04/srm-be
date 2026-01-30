@@ -5,7 +5,7 @@ import { BaseEntity } from "../../../common/entities/base.entity";
 @Schema({ collection: "traffic_sources", timestamps: false })
 export class TrafficSource extends BaseEntity {
   @Prop({ required: false })
-  utm_source: string; // facebook, google, tiktok, youtube, direct
+  utm_source: string; // facebook, google, tiktok, youtube, ads, direct
 
   @Prop({ required: false })
   utm_medium: string; // cpc, organic, email, social

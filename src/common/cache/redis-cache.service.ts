@@ -1,6 +1,6 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import { Injectable, Inject } from "@nestjs/common";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
 
 @Injectable()
 export class RedisCacheService {
@@ -19,9 +19,19 @@ export class RedisCacheService {
   }
 
   async delByPattern(pattern: string): Promise<void> {
-    const keys = await this.keys(pattern);
-    if (keys.length > 0) {
-      await Promise.all(keys.map(key => this.del(key)));
+    try {
+      const keys = await this.keys(pattern);
+      if (keys && keys.length > 0) {
+        // Delete keys one by one to be safe with different stores
+        for (const key of keys) {
+          await this.cacheManager.del(key);
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[RedisCacheService] Error deleting pattern ${pattern}:`,
+        error,
+      );
     }
   }
 
@@ -30,14 +40,30 @@ export class RedisCacheService {
   }
 
   async keys(pattern: string): Promise<string[]> {
-    const store = this.cacheManager.store as any;
-    if (store.keys) {
-      return await store.keys(pattern);
+    try {
+      const store = this.cacheManager.store as any;
+
+      // cache-manager-redis-yet exposes keys on the store
+      if (typeof store.keys === "function") {
+        return await store.keys(pattern);
+      }
+
+      // Fallback for other stores that might have it differently
+      if (store.client && typeof store.client.keys === "function") {
+        return await store.client.keys(pattern);
+      }
+
+      return [];
+    } catch (error) {
+      console.error(
+        `[RedisCacheService] Error fetching keys for pattern ${pattern}:`,
+        error,
+      );
+      return [];
     }
-    return [];
   }
 
   generateKey(prefix: string, ...args: (string | number)[]): string {
-    return `${prefix}:${args.join(':')}`;
+    return `${prefix}:${args.join(":")}`;
   }
 }

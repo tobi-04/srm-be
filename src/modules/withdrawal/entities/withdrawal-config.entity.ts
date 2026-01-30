@@ -16,6 +16,14 @@ export class WithdrawalConfig extends BaseEntity {
   @Prop({ type: Boolean, default: true })
   is_active: boolean;
 
+  // Withdrawal timeframe: start day of month (1-31)
+  @Prop({ type: Number, min: 1, max: 31, default: 1 })
+  withdrawal_start_day: number;
+
+  // Withdrawal timeframe: end day of month (1-31)
+  @Prop({ type: Number, min: 1, max: 31, default: 31 })
+  withdrawal_end_day: number;
+
   // Last admin who updated the config
   @Prop({
     type: MongooseSchema.Types.ObjectId,
