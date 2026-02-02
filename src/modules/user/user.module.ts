@@ -22,6 +22,6 @@ import { RedisCacheModule } from "../../common/cache/redis-cache.module";
   ],
   controllers: [UserController],
   providers: [UserService, UserRepository],
-  exports: [UserService, UserRepository],
+  exports: [UserService, UserRepository, MongooseModule],
 })
 export class UserModule {}

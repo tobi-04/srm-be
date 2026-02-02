@@ -224,6 +224,11 @@ export abstract class BaseRepository<T extends BaseEntity> {
       is_deleted: false,
     } as FilterQuery<T>);
 
+    if (options.sort) {
+      const sortOrder = options.order === "asc" ? 1 : -1;
+      query = query.sort({ [options.sort]: sortOrder });
+    }
+
     if (select) {
       query = query.select(select.join(" "));
     }

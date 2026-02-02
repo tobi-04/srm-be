@@ -11,189 +11,364 @@ import {
   HttpStatus,
   UseGuards,
   Request,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
-import { LessonService } from './lesson.service';
-import { CreateLessonDto, UpdateLessonDto, SearchLessonDto } from './dto/lesson.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
+} from "@nestjs/common";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+  ApiBearerAuth,
+  ApiBody,
+} from "@nestjs/swagger";
+import { LessonService } from "./lesson.service";
+import {
+  CreateLessonDto,
+  UpdateLessonDto,
+  SearchLessonDto,
+} from "./dto/lesson.dto";
+import { PaginationDto } from "../../common/dto/pagination.dto";
+import { JwtAccessGuard } from "../auth/guards/jwt-access.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { OptionalJwtGuard } from "../auth/guards/optional-jwt.guard";
+import { LessonCommentService } from "./lesson-comment.service";
+import { LessonNoteService } from "./lesson-note.service";
+import {
+  CreateLessonCommentDto,
+  UpdateLessonCommentDto,
+  AddReactionDto,
+} from "./dto/lesson-comment.dto";
+import {
+  CreateLessonNoteDto,
+  UpdateLessonNoteDto,
+} from "./dto/lesson-note.dto";
 
-@ApiTags('lessons')
-@Controller('lessons')
+@ApiTags("lessons")
+@Controller("lessons")
 export class LessonController {
-  constructor(private readonly lessonService: LessonService) {}
+  constructor(
+    private readonly lessonService: LessonService,
+    private readonly commentService: LessonCommentService,
+    private readonly noteService: LessonNoteService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new lesson (Admin only)' })
-  @ApiResponse({ status: 201, description: 'Lesson created successfully' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
+  @ApiOperation({ summary: "Create a new lesson (Admin only)" })
+  @ApiResponse({ status: 201, description: "Lesson created successfully" })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({ status: 403, description: "Forbidden - Admin only" })
   async create(@Body() createLessonDto: CreateLessonDto) {
     return this.lessonService.create(createLessonDto);
   }
 
-  @Put('bulk')
+  @Put("bulk")
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update multiple lessons (Admin only)' })
-  @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } }, data: { $ref: '#/components/schemas/UpdateLessonDto' } } } })
-  @ApiResponse({ status: 200, description: 'Lessons updated successfully' })
-  async updateMany(@Body('ids') ids: string[], @Body('data') data: UpdateLessonDto) {
+  @ApiOperation({ summary: "Update multiple lessons (Admin only)" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        ids: { type: "array", items: { type: "string" } },
+        data: { $ref: "#/components/schemas/UpdateLessonDto" },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: "Lessons updated successfully" })
+  async updateMany(
+    @Body("ids") ids: string[],
+    @Body("data") data: UpdateLessonDto,
+  ) {
     return this.lessonService.updateMany(ids, data);
   }
 
-  @Delete('bulk')
+  @Delete("bulk")
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Soft delete multiple lessons (Admin only)' })
-  @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
-  @ApiResponse({ status: 204, description: 'Lessons deleted successfully' })
-  async removeMany(@Body('ids') ids: string[]) {
+  @ApiOperation({ summary: "Soft delete multiple lessons (Admin only)" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: { ids: { type: "array", items: { type: "string" } } },
+    },
+  })
+  @ApiResponse({ status: 204, description: "Lessons deleted successfully" })
+  async removeMany(@Body("ids") ids: string[]) {
     await this.lessonService.removeMany(ids);
   }
 
-  @Delete('bulk/hard')
+  @Delete("bulk/hard")
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Permanently delete multiple lessons (Admin only)' })
-  @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
-  @ApiResponse({ status: 204, description: 'Lessons permanently deleted' })
-  async hardDeleteMany(@Body('ids') ids: string[]) {
+  @ApiOperation({ summary: "Permanently delete multiple lessons (Admin only)" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: { ids: { type: "array", items: { type: "string" } } },
+    },
+  })
+  @ApiResponse({ status: 204, description: "Lessons permanently deleted" })
+  async hardDeleteMany(@Body("ids") ids: string[]) {
     await this.lessonService.hardDeleteMany(ids);
   }
 
-  @Put('bulk/restore')
+  @Put("bulk/restore")
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Restore multiple lessons (Admin only)' })
-  @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
-  @ApiResponse({ status: 200, description: 'Lessons restored successfully' })
-  async restoreMany(@Body('ids') ids: string[]) {
+  @ApiOperation({ summary: "Restore multiple lessons (Admin only)" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: { ids: { type: "array", items: { type: "string" } } },
+    },
+  })
+  @ApiResponse({ status: 200, description: "Lessons restored successfully" })
+  async restoreMany(@Body("ids") ids: string[]) {
     return this.lessonService.restoreMany(ids);
   }
 
   @Get()
   @UseGuards(OptionalJwtGuard)
-  @ApiOperation({ summary: 'Get all lessons with pagination and filtering' })
-  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
-  @ApiQuery({ name: 'sort', required: false, type: String, example: 'order' })
-  @ApiQuery({ name: 'order', required: false, enum: ['asc', 'desc'], example: 'asc' })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({ name: 'status', required: false, type: String })
-  @ApiQuery({ name: 'course_id', required: false, type: String })
-  @ApiResponse({ status: 200, description: 'Lessons retrieved successfully' })
+  @ApiOperation({ summary: "Get all lessons with pagination and filtering" })
+  @ApiQuery({ name: "page", required: false, type: Number, example: 1 })
+  @ApiQuery({ name: "limit", required: false, type: Number, example: 10 })
+  @ApiQuery({ name: "sort", required: false, type: String, example: "order" })
+  @ApiQuery({
+    name: "order",
+    required: false,
+    enum: ["asc", "desc"],
+    example: "asc",
+  })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "status", required: false, type: String })
+  @ApiQuery({ name: "course_id", required: false, type: String })
+  @ApiResponse({ status: 200, description: "Lessons retrieved successfully" })
   async findAll(@Query() paginationDto: PaginationDto, @Request() req: any) {
     const searchDto: SearchLessonDto = {
       status: paginationDto.status as any,
       course_id: paginationDto.course_id,
     };
 
-    const isAdmin = req.user?.role === 'admin';
+    const isAdmin = req.user?.role === "admin";
 
     return this.lessonService.findAll(paginationDto, searchDto, isAdmin);
   }
 
-  @Get('course/:courseId')
+  @Get("course/:courseId")
   @UseGuards(OptionalJwtGuard)
-  @ApiOperation({ summary: 'Get all lessons for a course' })
-  @ApiParam({ name: 'courseId', type: String })
-  @ApiResponse({ status: 200, description: 'Lessons retrieved successfully' })
-  async findByCourseId(@Param('courseId') courseId: string, @Request() req: any) {
-    const isAdmin = req.user?.role === 'admin';
+  @ApiOperation({ summary: "Get all lessons for a course" })
+  @ApiParam({ name: "courseId", type: String })
+  @ApiResponse({ status: 200, description: "Lessons retrieved successfully" })
+  async findByCourseId(
+    @Param("courseId") courseId: string,
+    @Request() req: any,
+  ) {
+    const isAdmin = req.user?.role === "admin";
     return this.lessonService.findByCourseId(courseId, isAdmin);
   }
 
-  @Get(':id')
+  @Get(":id")
   @UseGuards(OptionalJwtGuard)
-  @ApiOperation({ summary: 'Get a lesson by ID' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Lesson retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Lesson not found' })
-  async findOne(@Param('id') id: string, @Request() req: any) {
-    const isAdmin = req.user?.role === 'admin';
+  @ApiOperation({ summary: "Get a lesson by ID" })
+  @ApiParam({ name: "id", type: String })
+  @ApiResponse({ status: 200, description: "Lesson retrieved successfully" })
+  @ApiResponse({ status: 404, description: "Lesson not found" })
+  async findOne(@Param("id") id: string, @Request() req: any) {
+    const isAdmin = req.user?.role === "admin";
     return this.lessonService.findOne(id, isAdmin);
   }
 
-  @Put(':id')
+  @Put(":id")
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update a lesson (Admin only)' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Lesson updated successfully' })
-  @ApiResponse({ status: 404, description: 'Lesson not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
-  async update(@Param('id') id: string, @Body() updateLessonDto: UpdateLessonDto) {
+  @ApiOperation({ summary: "Update a lesson (Admin only)" })
+  @ApiParam({ name: "id", type: String })
+  @ApiResponse({ status: 200, description: "Lesson updated successfully" })
+  @ApiResponse({ status: 404, description: "Lesson not found" })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({ status: 403, description: "Forbidden - Admin only" })
+  async update(
+    @Param("id") id: string,
+    @Body() updateLessonDto: UpdateLessonDto,
+  ) {
     return this.lessonService.update(id, updateLessonDto);
   }
 
-  @Put(':id/order')
+  @Put(":id/order")
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update lesson order (Admin only)' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Lesson order updated successfully' })
-  async updateOrder(@Param('id') id: string, @Body('order') order: number) {
+  @ApiOperation({ summary: "Update lesson order (Admin only)" })
+  @ApiParam({ name: "id", type: String })
+  @ApiResponse({
+    status: 200,
+    description: "Lesson order updated successfully",
+  })
+  async updateOrder(@Param("id") id: string, @Body("order") order: number) {
     return this.lessonService.updateOrder(id, order);
   }
 
-  @Delete(':id')
+  @Delete(":id")
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Soft delete a lesson (Admin only)' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 204, description: 'Lesson deleted successfully (soft delete)' })
-  @ApiResponse({ status: 404, description: 'Lesson not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
-  async remove(@Param('id') id: string) {
+  @ApiOperation({ summary: "Soft delete a lesson (Admin only)" })
+  @ApiParam({ name: "id", type: String })
+  @ApiResponse({
+    status: 204,
+    description: "Lesson deleted successfully (soft delete)",
+  })
+  @ApiResponse({ status: 404, description: "Lesson not found" })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({ status: 403, description: "Forbidden - Admin only" })
+  async remove(@Param("id") id: string) {
     await this.lessonService.remove(id);
   }
 
-  @Delete(':id/hard')
+  @Delete(":id/hard")
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Permanently delete a lesson (Admin only)' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 204, description: 'Lesson permanently deleted' })
-  @ApiResponse({ status: 404, description: 'Lesson not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
-  async hardDelete(@Param('id') id: string) {
+  @ApiOperation({ summary: "Permanently delete a lesson (Admin only)" })
+  @ApiParam({ name: "id", type: String })
+  @ApiResponse({ status: 204, description: "Lesson permanently deleted" })
+  @ApiResponse({ status: 404, description: "Lesson not found" })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({ status: 403, description: "Forbidden - Admin only" })
+  async hardDelete(@Param("id") id: string) {
     await this.lessonService.hardDelete(id);
   }
 
-  @Put(':id/restore')
+  @Put(":id/restore")
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin')
+  @Roles("admin")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Restore a soft-deleted lesson (Admin only)' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Lesson restored successfully' })
-  @ApiResponse({ status: 404, description: 'Lesson not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
-  async restore(@Param('id') id: string) {
+  @ApiOperation({ summary: "Restore a soft-deleted lesson (Admin only)" })
+  @ApiParam({ name: "id", type: String })
+  @ApiResponse({ status: 200, description: "Lesson restored successfully" })
+  @ApiResponse({ status: 404, description: "Lesson not found" })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({ status: 403, description: "Forbidden - Admin only" })
+  async restore(@Param("id") id: string) {
     return this.lessonService.restore(id);
+  }
+
+  // --- Discussion (Lesson Comments) ---
+
+  @Get(":lessonId/comments")
+  @UseGuards(OptionalJwtGuard)
+  @ApiOperation({ summary: "Get all comments for a lesson" })
+  async findAllComments(
+    @Param("lessonId") lessonId: string,
+    @Request() req: any,
+  ) {
+    return this.commentService.findAll(lessonId, req.user?.userId);
+  }
+
+  @Post(":lessonId/comments")
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Create a new comment" })
+  async createComment(
+    @Request() req: any,
+    @Body() createDto: CreateLessonCommentDto,
+  ) {
+    return this.commentService.create(req.user.userId, createDto);
+  }
+
+  @Put(":lessonId/comments/:id")
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Update a comment" })
+  async updateComment(
+    @Request() req: any,
+    @Param("id") id: string,
+    @Body() updateDto: UpdateLessonCommentDto,
+  ) {
+    return this.commentService.update(req.user.userId, id, updateDto);
+  }
+
+  @Delete(":lessonId/comments/:id")
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Delete a comment" })
+  async removeComment(@Request() req: any, @Param("id") id: string) {
+    const isAdmin = req.user.role === "admin";
+    return this.commentService.remove(req.user.userId, id, isAdmin);
+  }
+
+  @Post(":lessonId/comments/:id/reactions")
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Add or update a reaction to a comment" })
+  async addReaction(
+    @Request() req: any,
+    @Param("id") id: string,
+    @Body() reactionDto: AddReactionDto,
+  ) {
+    return this.commentService.addReaction(req.user.userId, id, reactionDto);
+  }
+
+  @Delete(":lessonId/comments/:id/reactions")
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Remove a reaction from a comment" })
+  async removeReaction(@Request() req: any, @Param("id") id: string) {
+    return this.commentService.removeReaction(req.user.userId, id);
+  }
+
+  // --- Personal Notes ---
+
+  @Get(":lessonId/notes")
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get all personal notes for a lesson" })
+  async findAllNotes(@Request() req: any, @Param("lessonId") lessonId: string) {
+    return this.noteService.findAll(req.user.userId, lessonId);
+  }
+
+  @Post(":lessonId/notes")
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Create a new personal note" })
+  async createNote(
+    @Request() req: any,
+    @Body() createDto: CreateLessonNoteDto,
+  ) {
+    return this.noteService.create(req.user.userId, createDto);
+  }
+
+  @Put(":lessonId/notes/:id")
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Update a personal note" })
+  async updateNote(
+    @Request() req: any,
+    @Param("id") id: string,
+    @Body() updateDto: UpdateLessonNoteDto,
+  ) {
+    return this.noteService.update(req.user.userId, id, updateDto);
+  }
+
+  @Delete(":lessonId/notes/:id")
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Delete a personal note" })
+  async removeNote(@Request() req: any, @Param("id") id: string) {
+    return this.noteService.remove(req.user.userId, id);
   }
 }
