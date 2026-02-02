@@ -26,7 +26,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
     return this.findOne({ slug } as any, {
       useCache: false, // Temporarily disable cache to force populate
       cacheTTL: 600,
-      populate: ["course_id"],
+      populate: ["course_id", "book_id", "indicator_id"],
     });
   }
 
@@ -47,6 +47,34 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
     return result.data;
   }
 
+  async findByBookId(bookId: string, useCache = true): Promise<LandingPage[]> {
+    const query = { book_id: bookId, resource_type: "book" } as any;
+    const result = await this.paginate(query, {
+      page: 1,
+      limit: 100,
+      useCache,
+      cacheTTL: 300,
+    });
+    return result.data;
+  }
+
+  async findByIndicatorId(
+    indicatorId: string,
+    useCache = true,
+  ): Promise<LandingPage[]> {
+    const query = {
+      indicator_id: indicatorId,
+      resource_type: "indicator",
+    } as any;
+    const result = await this.paginate(query, {
+      page: 1,
+      limit: 100,
+      useCache,
+      cacheTTL: 300,
+    });
+    return result.data;
+  }
+
   /**
    * Find published landing page by slug (for public view)
    */
@@ -54,7 +82,7 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
     return this.findOne({ slug, status: "published" } as any, {
       useCache: true,
       cacheTTL: 600,
-      populate: ["course_id"],
+      populate: ["course_id", "book_id", "indicator_id"],
     });
   }
 

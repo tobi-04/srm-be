@@ -9,8 +9,29 @@ export enum LandingPageStatus {
 
 @Schema({ collection: "landing_pages", timestamps: false })
 export class LandingPage extends BaseEntity {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Course", required: true })
-  course_id: string;
+  @Prop({
+    type: String,
+    enum: ["course", "book", "indicator"],
+    default: "course",
+  })
+  resource_type: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Course", required: false })
+  course_id?: string;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "ActionBook",
+    required: false,
+  })
+  book_id?: string;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "Indicator",
+    required: false,
+  })
+  indicator_id?: string;
 
   @Prop({ required: true })
   title: string;

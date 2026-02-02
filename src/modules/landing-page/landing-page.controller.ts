@@ -26,6 +26,7 @@ import {
   CreateLandingPageDto,
   UpdateLandingPageDto,
   SearchLandingPageDto,
+  GetLandingPagesDto,
 } from "./dto/landing-page.dto";
 import { SubmitUserFormDto } from "./dto/submit-user-form.dto";
 import { PaginationDto } from "../../common/dto/pagination.dto";
@@ -55,7 +56,7 @@ export class LandingPageController {
   async create(@Body() createLandingPageDto: CreateLandingPageDto) {
     console.log(
       "📝 POST /landing-pages - Creating landing page:",
-      createLandingPageDto
+      createLandingPageDto,
     );
     const result = await this.landingPageService.create(createLandingPageDto);
     console.log("✅ POST /landing-pages - Landing page created:", result);
@@ -71,16 +72,16 @@ export class LandingPageController {
   @ApiResponse({ status: 404, description: "Landing page not found" })
   async submitUserForm(
     @Param("slug") slug: string,
-    @Body() submitUserFormDto: SubmitUserFormDto
+    @Body() submitUserFormDto: SubmitUserFormDto,
   ) {
     console.log(
       "📝 POST /landing-pages/:slug/submit-form - Submitting form:",
       slug,
-      submitUserFormDto
+      submitUserFormDto,
     );
     const result = await this.landingPageService.submitUserForm(
       slug,
-      submitUserFormDto
+      submitUserFormDto,
     );
     console.log("✅ Form submitted successfully:", result);
     return result;
@@ -112,15 +113,17 @@ export class LandingPageController {
     status: 200,
     description: "Landing pages retrieved successfully",
   })
-  async findAll(@Query() paginationDto: PaginationDto, @Request() req: any) {
+  async findAll(@Query() query: GetLandingPagesDto, @Request() req: any) {
     const searchDto: SearchLandingPageDto = {
-      course_id: paginationDto["course_id"],
-      status: paginationDto.status as any,
+      course_id: query.course_id,
+      book_id: query.book_id,
+      indicator_id: query.indicator_id,
+      status: query.status,
     };
 
     const isAdmin = req.user?.role === "admin";
 
-    return this.landingPageService.findAll(paginationDto, searchDto, isAdmin);
+    return this.landingPageService.findAll(query, searchDto, isAdmin);
   }
 
   @Get("slug/:slug")
@@ -178,7 +181,7 @@ export class LandingPageController {
   @ApiResponse({ status: 403, description: "Forbidden - Admin only" })
   async update(
     @Param("id") id: string,
-    @Body() updateLandingPageDto: UpdateLandingPageDto
+    @Body() updateLandingPageDto: UpdateLandingPageDto,
   ) {
     return this.landingPageService.update(id, updateLandingPageDto);
   }
