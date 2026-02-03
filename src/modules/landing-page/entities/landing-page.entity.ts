@@ -21,7 +21,7 @@ export class LandingPage extends BaseEntity {
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
-    ref: "ActionBook",
+    ref: "Book",
     required: false,
   })
   book_id?: string;

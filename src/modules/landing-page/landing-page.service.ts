@@ -182,6 +182,7 @@ export class LandingPageService {
     const landingPage = await this.landingPageRepository.findById(id, {
       useCache: true,
       cacheTTL: 600,
+      populate: ["course_id", "book_id", "indicator_id"],
     });
 
     if (!landingPage) {
