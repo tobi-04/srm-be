@@ -6,29 +6,29 @@ import {
   IsArray,
   Min,
   MinLength,
-} from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CourseStatus } from '../entities/course.entity';
+} from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { CourseStatus } from "../entities/course.entity";
 
 export class CreateCourseDto {
   @ApiProperty({
-    description: 'Course title',
-    example: 'Advanced React Development',
+    description: "Course title",
+    example: "Advanced React Development",
   })
   @IsString()
   @MinLength(3)
   title: string;
 
   @ApiPropertyOptional({
-    description: 'Course description',
-    example: 'Learn advanced React patterns and best practices',
+    description: "Course description",
+    example: "Learn advanced React patterns and best practices",
   })
   @IsOptional()
   @IsString()
   description?: string;
 
   @ApiProperty({
-    description: 'Course price (can be 0 for free)',
+    description: "Course price (can be 0 for free)",
     example: 99.99,
     minimum: 0,
   })
@@ -37,7 +37,7 @@ export class CreateCourseDto {
   price: number;
 
   @ApiPropertyOptional({
-    description: 'Course status',
+    description: "Course status",
     enum: CourseStatus,
     default: CourseStatus.DRAFT,
   })
@@ -46,16 +46,24 @@ export class CreateCourseDto {
   status?: CourseStatus;
 
   @ApiPropertyOptional({
-    description: 'Course category',
-    example: 'Web Development',
+    description: "Course category",
+    example: "Web Development",
   })
   @IsOptional()
   @IsString()
   category?: string;
 
   @ApiPropertyOptional({
-    description: 'Course syllabus (array of topics)',
-    example: ['React Hooks', 'Context API', 'Performance Optimization'],
+    description: "Course thumbnail image URL",
+    example: "https://example.com/course-thumbnail.jpg",
+  })
+  @IsOptional()
+  @IsString()
+  thumbnail?: string;
+
+  @ApiPropertyOptional({
+    description: "Course syllabus (array of topics)",
+    example: ["React Hooks", "Context API", "Performance Optimization"],
   })
   @IsOptional()
   @IsArray()
@@ -65,8 +73,8 @@ export class CreateCourseDto {
 
 export class UpdateCourseDto {
   @ApiPropertyOptional({
-    description: 'Course title',
-    example: 'Advanced React Development',
+    description: "Course title",
+    example: "Advanced React Development",
   })
   @IsOptional()
   @IsString()
@@ -74,14 +82,14 @@ export class UpdateCourseDto {
   title?: string;
 
   @ApiPropertyOptional({
-    description: 'Course description',
+    description: "Course description",
   })
   @IsOptional()
   @IsString()
   description?: string;
 
   @ApiPropertyOptional({
-    description: 'Course price',
+    description: "Course price",
     minimum: 0,
   })
   @IsOptional()
@@ -90,7 +98,7 @@ export class UpdateCourseDto {
   price?: number;
 
   @ApiPropertyOptional({
-    description: 'Course status',
+    description: "Course status",
     enum: CourseStatus,
   })
   @IsOptional()
@@ -98,14 +106,21 @@ export class UpdateCourseDto {
   status?: CourseStatus;
 
   @ApiPropertyOptional({
-    description: 'Course category',
+    description: "Course category",
   })
   @IsOptional()
   @IsString()
   category?: string;
 
   @ApiPropertyOptional({
-    description: 'Course syllabus',
+    description: "Course thumbnail image URL",
+  })
+  @IsOptional()
+  @IsString()
+  thumbnail?: string;
+
+  @ApiPropertyOptional({
+    description: "Course syllabus",
   })
   @IsOptional()
   @IsArray()
@@ -115,15 +130,15 @@ export class UpdateCourseDto {
 
 export class SearchCourseDto {
   @ApiPropertyOptional({
-    description: 'Search query for title or description',
-    example: 'react',
+    description: "Search query for title or description",
+    example: "react",
   })
   @IsOptional()
   @IsString()
   query?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter by status',
+    description: "Filter by status",
     enum: CourseStatus,
   })
   @IsOptional()
@@ -131,14 +146,14 @@ export class SearchCourseDto {
   status?: CourseStatus;
 
   @ApiPropertyOptional({
-    description: 'Filter by category',
+    description: "Filter by category",
   })
   @IsOptional()
   @IsString()
   category?: string;
 
   @ApiPropertyOptional({
-    description: 'Minimum price',
+    description: "Minimum price",
   })
   @IsOptional()
   @IsNumber()
@@ -146,7 +161,7 @@ export class SearchCourseDto {
   minPrice?: number;
 
   @ApiPropertyOptional({
-    description: 'Maximum price',
+    description: "Maximum price",
   })
   @IsOptional()
   @IsNumber()
