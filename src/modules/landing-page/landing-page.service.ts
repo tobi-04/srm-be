@@ -240,6 +240,38 @@ export class LandingPageService {
     return landingPage;
   }
 
+  async findByCourseSlug(courseSlug: string, isAdmin: boolean = false) {
+    // Find course by slug
+    const course = await this.landingPageRepository.courseModel
+      .findOne({ slug: courseSlug })
+      .exec();
+
+    if (!course) {
+      throw new NotFoundException(`Course with slug "${courseSlug}" not found`);
+    }
+
+    // Find landing page by course_id
+    const landingPage = await this.landingPageRepository.findOne(
+      { course_id: course._id } as any,
+      {
+        populate: ["course_id", "book_id", "indicator_id"],
+      },
+    );
+
+    if (!landingPage) {
+      throw new NotFoundException(
+        `Landing page for course "${courseSlug}" not found`,
+      );
+    }
+
+    // If not admin and landing page is draft, deny access
+    if (!isAdmin && landingPage.status === "draft") {
+      throw new NotFoundException("Landing page not found");
+    }
+
+    return landingPage;
+  }
+
   async findByCourseId(courseId: string) {
     return this.landingPageRepository.findByCourseId(courseId);
   }
@@ -456,6 +488,40 @@ export class LandingPageService {
       message: "Form submitted successfully",
       submission_id: submission._id.toString(),
     };
+  }
+
+  /**
+   * Submit user form by course slug - delegates to submitUserForm after finding landing page
+   */
+  async submitUserFormByCourseSlug(
+    courseSlug: string,
+    submitUserFormDto: SubmitUserFormDto,
+  ) {
+    // Find course by slug
+    const course = await this.landingPageRepository.courseModel
+      .findOne({ slug: courseSlug })
+      .exec();
+
+    if (!course) {
+      throw new NotFoundException(`Course with slug "${courseSlug}" not found`);
+    }
+
+    // Find landing page by course_id
+    const landingPage = await this.landingPageRepository.findOne(
+      { course_id: course._id } as any,
+      {
+        populate: ["course_id"],
+      },
+    );
+
+    if (!landingPage) {
+      throw new NotFoundException(
+        `Landing page for course "${courseSlug}" not found`,
+      );
+    }
+
+    // Use the landing page slug to submit the form
+    return this.submitUserForm(landingPage.slug, submitUserFormDto);
   }
 
   /**

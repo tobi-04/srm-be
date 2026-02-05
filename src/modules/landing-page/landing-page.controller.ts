@@ -87,6 +87,39 @@ export class LandingPageController {
     return result;
   }
 
+  @Post("by-course-slug/:courseSlug/submit-form")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Submit user form by course slug (Public)",
+  })
+  @ApiParam({
+    name: "courseSlug",
+    type: String,
+    description: "Course slug",
+  })
+  @ApiResponse({ status: 200, description: "Form submitted successfully" })
+  @ApiResponse({ status: 400, description: "Bad request - validation failed" })
+  @ApiResponse({
+    status: 404,
+    description: "Course or landing page not found",
+  })
+  async submitUserFormByCourseSlug(
+    @Param("courseSlug") courseSlug: string,
+    @Body() submitUserFormDto: SubmitUserFormDto,
+  ) {
+    console.log(
+      "📝 POST /landing-pages/by-course-slug/:courseSlug/submit-form - Submitting form:",
+      courseSlug,
+      submitUserFormDto,
+    );
+    const result = await this.landingPageService.submitUserFormByCourseSlug(
+      courseSlug,
+      submitUserFormDto,
+    );
+    console.log("✅ Form submitted successfully:", result);
+    return result;
+  }
+
   @Get()
   @UseGuards(OptionalJwtGuard)
   @ApiOperation({
@@ -138,6 +171,23 @@ export class LandingPageController {
   async findBySlug(@Param("slug") slug: string, @Request() req: any) {
     const isAdmin = req.user?.role === "admin";
     return this.landingPageService.findBySlug(slug, isAdmin);
+  }
+
+  @Get("by-course-slug/:courseSlug")
+  @UseGuards(OptionalJwtGuard)
+  @ApiOperation({ summary: "Get landing page by course slug (Public)" })
+  @ApiParam({ name: "courseSlug", type: String })
+  @ApiResponse({
+    status: 200,
+    description: "Landing page retrieved successfully",
+  })
+  @ApiResponse({ status: 404, description: "Course or landing page not found" })
+  async findByCourseSlug(
+    @Param("courseSlug") courseSlug: string,
+    @Request() req: any,
+  ) {
+    const isAdmin = req.user?.role === "admin";
+    return this.landingPageService.findByCourseSlug(courseSlug, isAdmin);
   }
 
   @Get("course/:courseId")

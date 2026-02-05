@@ -32,6 +32,7 @@ import { ApiLoggerMiddleware } from "./common/middleware/api-logger.middleware";
 import { BookStoreModule } from "./modules/book-store/book-store.module";
 import { IndicatorStoreModule } from "./modules/indicator-store/indicator-store.module";
 import { UploadModule } from "./modules/upload/upload.module";
+import { CouponModule } from "./modules/coupon/coupon.module";
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { UploadModule } from "./modules/upload/upload.module";
     BookStoreModule,
     IndicatorStoreModule,
     UploadModule,
+    CouponModule,
   ],
   controllers: [AppController],
   providers: [AppService],

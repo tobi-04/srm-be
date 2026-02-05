@@ -18,6 +18,9 @@ export class Course extends BaseEntity {
   @Prop({ required: true, min: 0, default: 0 })
   price: number;
 
+  @Prop({ default: 0, min: 0, max: 100 })
+  default_discount_percent: number;
+
   @Prop({ type: String, enum: CourseStatus, default: CourseStatus.DRAFT })
   status: CourseStatus;
 

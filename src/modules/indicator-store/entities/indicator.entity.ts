@@ -31,6 +31,9 @@ export class Indicator extends BaseEntity {
   @Prop({ required: true, min: 0, default: 0 })
   price_monthly: number;
 
+  @Prop({ default: 0, min: 0, max: 100 })
+  default_discount_percent: number;
+
   @Prop({
     type: String,
     enum: IndicatorStatus,

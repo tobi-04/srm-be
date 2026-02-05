@@ -37,6 +37,17 @@ export class CreateCourseDto {
   price: number;
 
   @ApiPropertyOptional({
+    description: "Default discount percentage (0-100)",
+    example: 20,
+    minimum: 0,
+    maximum: 100,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  default_discount_percent?: number;
+
+  @ApiPropertyOptional({
     description: "Course status",
     enum: CourseStatus,
     default: CourseStatus.DRAFT,

@@ -3,6 +3,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { LandingPage } from "./entities/landing-page.entity";
 import { UserFormSubmission } from "./entities/user-form-submission.entity";
+import { Course } from "../course/entities/course.entity";
 import { BaseRepository } from "../../common/repositories/base.repository";
 import { RedisCacheService } from "../../common/cache/redis-cache.service";
 
@@ -14,6 +15,8 @@ export class LandingPageRepository extends BaseRepository<LandingPage> {
     @InjectModel(LandingPage.name) protected readonly model: Model<LandingPage>,
     @InjectModel(UserFormSubmission.name)
     private readonly userFormSubmissionModel: Model<UserFormSubmission>,
+    @InjectModel(Course.name)
+    public readonly courseModel: Model<Course>,
     cacheService: RedisCacheService,
   ) {
     super(cacheService);
