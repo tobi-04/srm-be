@@ -21,6 +21,14 @@ import {
   CourseEnrollmentSchema,
 } from "../course-enrollment/entities/course-enrollment.entity";
 import { Order, OrderSchema } from "../order/entities/order.entity";
+import {
+  BookOrder,
+  BookOrderSchema,
+} from "../book-store/entities/book-order.entity";
+import {
+  IndicatorSubscription,
+  IndicatorSubscriptionSchema,
+} from "../indicator-store/entities/indicator-subscription.entity";
 
 @Module({
   imports: [
@@ -32,6 +40,8 @@ import { Order, OrderSchema } from "../order/entities/order.entity";
       { name: TrafficSource.name, schema: TrafficSourceSchema },
       { name: CourseEnrollment.name, schema: CourseEnrollmentSchema },
       { name: Order.name, schema: OrderSchema },
+      { name: BookOrder.name, schema: BookOrderSchema },
+      { name: IndicatorSubscription.name, schema: IndicatorSubscriptionSchema },
     ]),
   ],
   controllers: [AnalyticsController],
