@@ -33,6 +33,7 @@ import { BookStoreModule } from "./modules/book-store/book-store.module";
 import { IndicatorStoreModule } from "./modules/indicator-store/indicator-store.module";
 import { UploadModule } from "./modules/upload/upload.module";
 import { CouponModule } from "./modules/coupon/coupon.module";
+import { TelegramModule } from "./modules/telegram/telegram.module";
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { CouponModule } from "./modules/coupon/coupon.module";
     IndicatorStoreModule,
     UploadModule,
     CouponModule,
+    TelegramModule,
   ],
   controllers: [AppController],
   providers: [AppService],

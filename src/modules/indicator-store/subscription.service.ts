@@ -242,6 +242,21 @@ export class SubscriptionService {
       endAt,
       isNewUser: subscription.metadata.is_new_user,
     });
+
+    // Emit unified payment.paid event for Telegram notification
+    this.eventEmitter.emit("payment.paid", {
+      payment_id: payment._id.toString(),
+      user_id: user._id.toString(),
+      product_type: "INDICATOR",
+      product_id: indicator._id.toString(),
+      amount: subscription.metadata.price,
+      paid_at: payment.paid_at,
+      metadata: {
+        indicator_name: indicator.name,
+        start_at: startAt,
+        end_at: endAt,
+      },
+    });
   }
 
   /**
