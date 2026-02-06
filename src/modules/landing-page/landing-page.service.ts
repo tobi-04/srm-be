@@ -95,13 +95,32 @@ export class LandingPageService {
   }
 
   async create(createLandingPageDto: CreateLandingPageDto) {
-    // Check if landing page already exists for this course
-    const existingLandingPages = await this.findByCourseId(
-      createLandingPageDto.course_id,
-    );
+    // Check if landing page already exists for this resource
+    let existingLandingPages: any[] = [];
+
+    if (
+      createLandingPageDto.resource_type === "book" &&
+      createLandingPageDto.book_id
+    ) {
+      existingLandingPages = await this.landingPageRepository.findByBookId(
+        createLandingPageDto.book_id,
+      );
+    } else if (
+      createLandingPageDto.resource_type === "indicator" &&
+      createLandingPageDto.indicator_id
+    ) {
+      existingLandingPages = await this.landingPageRepository.findByIndicatorId(
+        createLandingPageDto.indicator_id,
+      );
+    } else if (createLandingPageDto.course_id) {
+      existingLandingPages = await this.landingPageRepository.findByCourseId(
+        createLandingPageDto.course_id,
+      );
+    }
+
     if (existingLandingPages && existingLandingPages.length > 0) {
       throw new BadRequestException(
-        "A landing page already exists for this course",
+        "A landing page already exists for this resource",
       );
     }
 
@@ -141,6 +160,8 @@ export class LandingPageService {
     }
 
     if (course_id) filter.course_id = course_id;
+    if (searchDto.book_id) filter.book_id = searchDto.book_id;
+    if (searchDto.indicator_id) filter.indicator_id = searchDto.indicator_id;
 
     const result = await this.landingPageRepository.paginate(filter, {
       page,
@@ -161,6 +182,7 @@ export class LandingPageService {
     const landingPage = await this.landingPageRepository.findById(id, {
       useCache: true,
       cacheTTL: 600,
+      populate: ["course_id", "book_id", "indicator_id"],
     });
 
     if (!landingPage) {
@@ -208,6 +230,38 @@ export class LandingPageService {
 
     if (!landingPage) {
       throw new NotFoundException("Landing page not found");
+    }
+
+    // If not admin and landing page is draft, deny access
+    if (!isAdmin && landingPage.status === "draft") {
+      throw new NotFoundException("Landing page not found");
+    }
+
+    return landingPage;
+  }
+
+  async findByCourseSlug(courseSlug: string, isAdmin: boolean = false) {
+    // Find course by slug
+    const course = await this.landingPageRepository.courseModel
+      .findOne({ slug: courseSlug })
+      .exec();
+
+    if (!course) {
+      throw new NotFoundException(`Course with slug "${courseSlug}" not found`);
+    }
+
+    // Find landing page by course_id
+    const landingPage = await this.landingPageRepository.findOne(
+      { course_id: course._id } as any,
+      {
+        populate: ["course_id", "book_id", "indicator_id"],
+      },
+    );
+
+    if (!landingPage) {
+      throw new NotFoundException(
+        `Landing page for course "${courseSlug}" not found`,
+      );
     }
 
     // If not admin and landing page is draft, deny access
@@ -313,6 +367,14 @@ export class LandingPageService {
         throw new BadRequestException(
           "Tài khoản của bạn không có quyền mua khóa học. Vui lòng sử dụng tài khoản học viên.",
         );
+      }
+
+      // If resource is not a course, we might handle it differently or throw error
+      if (!landingPage.course_id) {
+        // Allow purchase if it's strictly a payment flow, but enrollment check makes sense only for courses usually
+        // For books, we don't have enrollment service check yet in this method context.
+        // Assuming books/indicators don't use this user form flow for now.
+        return;
       }
 
       const courseId =
@@ -426,6 +488,40 @@ export class LandingPageService {
       message: "Form submitted successfully",
       submission_id: submission._id.toString(),
     };
+  }
+
+  /**
+   * Submit user form by course slug - delegates to submitUserForm after finding landing page
+   */
+  async submitUserFormByCourseSlug(
+    courseSlug: string,
+    submitUserFormDto: SubmitUserFormDto,
+  ) {
+    // Find course by slug
+    const course = await this.landingPageRepository.courseModel
+      .findOne({ slug: courseSlug })
+      .exec();
+
+    if (!course) {
+      throw new NotFoundException(`Course with slug "${courseSlug}" not found`);
+    }
+
+    // Find landing page by course_id
+    const landingPage = await this.landingPageRepository.findOne(
+      { course_id: course._id } as any,
+      {
+        populate: ["course_id"],
+      },
+    );
+
+    if (!landingPage) {
+      throw new NotFoundException(
+        `Landing page for course "${courseSlug}" not found`,
+      );
+    }
+
+    // Use the landing page slug to submit the form
+    return this.submitUserForm(landingPage.slug, submitUserFormDto);
   }
 
   /**

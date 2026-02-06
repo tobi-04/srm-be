@@ -17,14 +17,17 @@ export interface RepositoryOptions {
 
 export interface FindOptions extends RepositoryOptions {
   select?: string[];
-  populate?: string[];
+  populate?: any[];
+
+  sort?: string;
+  order?: "asc" | "desc";
 }
 
 export interface PaginateOptions extends FindOptions {
   page?: number;
   limit?: number;
   sort?: string;
-  order?: 'asc' | 'desc';
+  order?: "asc" | "desc";
   search?: string;
   searchFields?: string[];
   includeDeleted?: boolean; // Include soft-deleted items

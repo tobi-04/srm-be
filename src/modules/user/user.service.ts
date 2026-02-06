@@ -305,7 +305,7 @@ export class UserService {
           as: "enrollments",
         },
       },
-      // Lookup orders via UserFormSubmission and PaymentTransaction
+      // Lookup course orders via UserFormSubmission and PaymentTransaction
       {
         $lookup: {
           from: "user_form_submissions",
@@ -347,7 +347,8 @@ export class UserService {
                   {
                     $project: {
                       order_id: "$_id",
-                      course_title: "$course.title",
+                      type: { $literal: "course" },
+                      item_name: "$course.title",
                       amount: 1,
                       status: 1,
                       paid_at: 1,
@@ -360,9 +361,85 @@ export class UserService {
             },
             { $unwind: "$transactions" },
             { $replaceRoot: { newRoot: "$transactions" } },
-            { $sort: { created_at: -1 } },
           ],
-          as: "orders",
+          as: "course_orders",
+        },
+      },
+      // Lookup book orders
+      {
+        $lookup: {
+          from: "book_orders",
+          let: { userId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$user_id", "$$userId"] },
+                is_deleted: false,
+              },
+            },
+            {
+              $project: {
+                order_id: "$_id",
+                type: { $literal: "book" },
+                item_name: { $literal: "Đơn hàng sách" },
+                amount: "$total_amount",
+                status: 1,
+                paid_at: 1,
+                created_at: 1,
+                transfer_code: 1,
+              },
+            },
+          ],
+          as: "book_orders",
+        },
+      },
+      // Lookup indicator subscriptions
+      {
+        $lookup: {
+          from: "indicator_subscriptions",
+          let: { userId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$user_id", "$$userId"] },
+                is_deleted: false,
+              },
+            },
+            // Join with Indicator to get name and price
+            {
+              $lookup: {
+                from: "indicators",
+                localField: "indicator_id",
+                foreignField: "_id",
+                as: "indicator",
+              },
+            },
+            {
+              $unwind: {
+                path: "$indicator",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $project: {
+                order_id: "$_id",
+                type: { $literal: "indicator" },
+                item_name: "$indicator.name",
+                amount: "$indicator.price_monthly",
+                status: {
+                  $cond: {
+                    if: { $eq: ["$status", "ACTIVE"] },
+                    then: "COMPLETED",
+                    else: "$status",
+                  },
+                },
+                paid_at: "$start_at",
+                created_at: 1,
+                transfer_code: 1,
+              },
+            },
+          ],
+          as: "indicator_orders",
         },
       },
       {
@@ -373,7 +450,9 @@ export class UserService {
           is_active: 1,
           created_at: 1,
           enrollments: 1,
-          orders: 1,
+          course_orders: 1,
+          book_orders: 1,
+          indicator_orders: 1,
         },
       },
     ];
@@ -384,6 +463,17 @@ export class UserService {
       throw new NotFoundException("Student not found");
     }
 
+    // Merge all orders and sort by created_at
+    const allOrders = [
+      ...(result.course_orders || []),
+      ...(result.book_orders || []),
+      ...(result.indicator_orders || []),
+    ].sort((a, b) => {
+      const dateA = a.paid_at || a.created_at;
+      const dateB = b.paid_at || b.created_at;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+
     const response = {
       student: {
         _id: result._id,
@@ -393,10 +483,10 @@ export class UserService {
         created_at: result.created_at,
       },
       enrollments: result.enrollments || [],
-      orders: result.orders || [],
+      orders: allOrders,
       summary: {
         total_courses: result.enrollments?.length || 0,
-        total_orders: result.orders?.length || 0,
+        total_orders: allOrders.length,
         avg_progress:
           result.enrollments?.length > 0
             ? Math.round(
@@ -407,8 +497,13 @@ export class UserService {
               )
             : 0,
         total_spent:
-          result.orders
-            ?.filter((o: any) => o.status === "completed")
+          allOrders
+            .filter(
+              (o: any) =>
+                o.status === "COMPLETED" ||
+                o.status === "PAID" ||
+                o.status === "completed",
+            )
             .reduce((sum: number, o: any) => sum + (o.amount || 0), 0) || 0,
       },
     };

@@ -28,6 +28,14 @@ import {
   CourseEnrollmentSchema,
 } from "../course-enrollment/entities/course-enrollment.entity";
 
+import { LessonCommentService } from "./lesson-comment.service";
+import { LessonNoteService } from "./lesson-note.service";
+import { UserModule } from "../user/user.module";
+
+import { LessonCommentRepository } from "./lesson-comment.repository";
+import { LessonCommentReactionRepository } from "./lesson-comment-reaction.repository";
+import { LessonNoteRepository } from "./lesson-note.repository";
+
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -41,19 +49,28 @@ import {
     ]),
     RedisCacheModule,
     R2Module,
+    UserModule,
   ],
   controllers: [LessonController, LessonFileController],
+
   providers: [
     LessonService,
     LessonFileService,
     LessonProgressService,
     LessonRepository,
+    LessonCommentService,
+    LessonNoteService,
+    LessonCommentRepository,
+    LessonCommentReactionRepository,
+    LessonNoteRepository,
   ],
   exports: [
     LessonService,
     LessonFileService,
     LessonProgressService,
     LessonRepository,
+    LessonCommentService,
+    LessonNoteService,
   ],
 })
 export class LessonModule {}

@@ -7,6 +7,13 @@ export enum CouponType {
   FIXED_AMOUNT = "FIXED_AMOUNT",
 }
 
+export enum ApplicableResourceType {
+  BOOK = "BOOK",
+  COURSE = "COURSE",
+  INDICATOR = "INDICATOR",
+  ALL = "ALL",
+}
+
 @Schema({ collection: "coupons", timestamps: true })
 export class Coupon extends BaseEntity {
   @Prop({ required: true, unique: true, uppercase: true, trim: true })
@@ -17,6 +24,13 @@ export class Coupon extends BaseEntity {
 
   @Prop({ required: true, min: 0 })
   value: number;
+
+  @Prop({
+    type: [String],
+    enum: Object.values(ApplicableResourceType),
+    default: [ApplicableResourceType.ALL],
+  })
+  applicable_to: ApplicableResourceType[];
 
   @Prop({ default: null })
   expires_at: Date;

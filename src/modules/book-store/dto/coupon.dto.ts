@@ -7,9 +7,10 @@ import {
   IsBoolean,
   IsDateString,
   MinLength,
+  IsArray,
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { CouponType } from "../entities/coupon.entity";
+import { CouponType, ApplicableResourceType } from "../entities/coupon.entity";
 
 export class CreateCouponDto {
   @ApiProperty({
@@ -35,6 +36,17 @@ export class CreateCouponDto {
   @IsNumber()
   @Min(0)
   value: number;
+
+  @ApiPropertyOptional({
+    description: "Resource types this coupon applies to",
+    enum: ApplicableResourceType,
+    isArray: true,
+    example: [ApplicableResourceType.ALL],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(ApplicableResourceType, { each: true })
+  applicable_to?: ApplicableResourceType[];
 
   @ApiPropertyOptional({
     description: "Expiry date",
@@ -79,6 +91,16 @@ export class UpdateCouponDto {
   @IsNumber()
   @Min(0)
   value?: number;
+
+  @ApiPropertyOptional({
+    description: "Resource types this coupon applies to",
+    enum: ApplicableResourceType,
+    isArray: true,
+  })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(ApplicableResourceType, { each: true })
+  applicable_to?: ApplicableResourceType[];
 
   @ApiPropertyOptional({ description: "Expiry date" })
   @IsOptional()

@@ -116,6 +116,23 @@ export class PaymentWebhookController {
       };
     }
 
+    // Handle Indicator Subscription
+    if (transferCode.startsWith("INDP")) {
+      this.logger.log(
+        `📈 Found Indicator Subscription transfer code: ${transferCode}`,
+      );
+      // Emit event for SubscriptionService to handle
+      this.eventEmitter.emit("indicator.payment.confirmed", {
+        transferCode,
+        sepayTransactionId: webhookData.id.toString(),
+        amount: webhookData.transferAmount,
+      });
+      return {
+        success: true,
+        message: "Indicator subscription payment event emitted",
+      };
+    }
+
     let transaction;
     try {
       transaction =
@@ -218,6 +235,19 @@ export class PaymentWebhookController {
         email: submission.email, // Use email from submission
         name: submission.name, // Use name from submission
         submissionId: submission._id.toString(),
+      });
+
+      // Emit unified payment.paid event for Telegram notification
+      this.eventEmitter.emit("payment.paid", {
+        payment_id: transaction._id.toString(),
+        user_id: user._id.toString(),
+        product_type: "COURSE",
+        product_id: transaction.course_id,
+        amount: transaction.amount,
+        paid_at: new Date(),
+        metadata: {
+          course_title: transaction.metadata?.course_title,
+        },
       });
     } catch (error: any) {
       if (error.message.includes("already enrolled")) {

@@ -1,33 +1,47 @@
-import { IsString, IsEnum, IsObject, IsArray, IsOptional, IsNotEmpty, ValidateNested, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
-import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { LandingPageStatus } from '../entities/landing-page.entity';
+import {
+  IsString,
+  IsEnum,
+  IsObject,
+  IsArray,
+  IsOptional,
+  IsNotEmpty,
+  ValidateNested,
+  IsBoolean,
+} from "class-validator";
+import { Type } from "class-transformer";
+import { ApiProperty, PartialType } from "@nestjs/swagger";
+import { LandingPageStatus } from "../entities/landing-page.entity";
+import { PaginationDto } from "../../../common/dto/pagination.dto";
+import { IntersectionType } from "@nestjs/swagger";
 
 class FormFieldDto {
-  @ApiProperty({ example: 'fullname' })
+  @ApiProperty({ example: "fullname" })
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: 'Full Name' })
+  @ApiProperty({ example: "Full Name" })
   @IsString()
   @IsNotEmpty()
   label: string;
 
-  @ApiProperty({ example: 'text', enum: ['text', 'email', 'tel', 'textarea', 'select'] })
-  @IsEnum(['text', 'email', 'tel', 'textarea', 'select'])
-  type: 'text' | 'email' | 'tel' | 'textarea' | 'select';
+  @ApiProperty({
+    example: "text",
+    enum: ["text", "email", "tel", "textarea", "select"],
+  })
+  @IsEnum(["text", "email", "tel", "textarea", "select"])
+  type: "text" | "email" | "tel" | "textarea" | "select";
 
   @ApiProperty({ example: true })
   @IsBoolean()
   required: boolean;
 
-  @ApiProperty({ example: 'Enter your full name', required: false })
+  @ApiProperty({ example: "Enter your full name", required: false })
   @IsString()
   @IsOptional()
   placeholder?: string;
 
-  @ApiProperty({ example: ['Option 1', 'Option 2'], required: false })
+  @ApiProperty({ example: ["Option 1", "Option 2"], required: false })
   @IsArray()
   @IsOptional()
   options?: string[];
@@ -73,42 +87,73 @@ class MetadataDto {
 }
 
 export class CreateLandingPageDto {
-  @ApiProperty({ example: '507f1f77bcf86cd799439011' })
+  @ApiProperty({ example: "course", enum: ["course", "book", "indicator"] })
   @IsString()
-  @IsNotEmpty()
-  course_id: string;
+  @IsOptional()
+  resource_type?: string;
 
-  @ApiProperty({ example: 'Web Development Course Landing Page' })
+  @ApiProperty({ example: "507f1f77bcf86cd799439011", required: false })
+  @IsString()
+  @IsOptional()
+  course_id?: string;
+
+  @ApiProperty({ example: "507f1f77bcf86cd799439011", required: false })
+  @IsString()
+  @IsOptional()
+  book_id?: string;
+
+  @ApiProperty({ example: "507f1f77bcf86cd799439011", required: false })
+  @IsString()
+  @IsOptional()
+  indicator_id?: string;
+
+  @ApiProperty({ example: "Web Development Course Landing Page" })
   @IsString()
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty({ example: 'web-dev-course' })
+  @ApiProperty({ example: "web-dev-course" })
   @IsString()
   @IsNotEmpty()
   slug: string;
 
-  @ApiProperty({ example: 'draft', enum: LandingPageStatus })
+  @ApiProperty({ example: "draft", enum: LandingPageStatus })
   @IsEnum(LandingPageStatus)
   @IsOptional()
   status?: LandingPageStatus;
 
-  @ApiProperty({ example: {}, required: false, description: 'Legacy field - Craft.js page structure' })
+  @ApiProperty({
+    example: {},
+    required: false,
+    description: "Legacy field - Craft.js page structure",
+  })
   @IsObject()
   @IsOptional()
   page_content?: Record<string, any>;
 
-  @ApiProperty({ example: {}, required: false, description: 'Step 1: User Information Form - Craft.js page structure' })
+  @ApiProperty({
+    example: {},
+    required: false,
+    description: "Step 1: User Information Form - Craft.js page structure",
+  })
   @IsObject()
   @IsOptional()
   page_1_content?: Record<string, any>;
 
-  @ApiProperty({ example: {}, required: false, description: 'Step 2: Sales Page - Craft.js page structure' })
+  @ApiProperty({
+    example: {},
+    required: false,
+    description: "Step 2: Sales Page - Craft.js page structure",
+  })
   @IsObject()
   @IsOptional()
   page_2_content?: Record<string, any>;
 
-  @ApiProperty({ example: {}, required: false, description: 'Step 3: Payment Page - Craft.js page structure' })
+  @ApiProperty({
+    example: {},
+    required: false,
+    description: "Step 3: Payment Page - Craft.js page structure",
+  })
   @IsObject()
   @IsOptional()
   page_3_content?: Record<string, any>;
@@ -148,8 +193,24 @@ export class SearchLandingPageDto {
   @IsOptional()
   course_id?: string;
 
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  book_id?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  indicator_id?: string;
+
   @ApiProperty({ required: false, enum: LandingPageStatus })
   @IsEnum(LandingPageStatus)
   @IsOptional()
+  @IsOptional()
   status?: LandingPageStatus;
 }
+
+export class GetLandingPagesDto extends IntersectionType(
+  PaginationDto,
+  SearchLandingPageDto,
+) {}

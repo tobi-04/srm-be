@@ -287,5 +287,19 @@ export class BookOrderService {
       books: items.map((i) => ({ id: i.book_id, title: i.book_title })),
       purchasedAt: order.paid_at,
     });
+
+    // Emit unified payment.paid event for Telegram notification
+    this.eventEmitter.emit("payment.paid", {
+      payment_id: order._id.toString(),
+      user_id: user._id.toString(),
+      product_type: "BOOK",
+      product_id: items[0]?.book_id.toString(), // First book in order
+      amount: order.total_amount,
+      paid_at: order.paid_at,
+      metadata: {
+        book_title: items[0]?.book_title,
+        total_books: items.length,
+      },
+    });
   }
 }
