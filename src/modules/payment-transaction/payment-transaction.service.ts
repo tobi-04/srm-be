@@ -24,7 +24,8 @@ export class PaymentTransactionService {
   async createTransaction(
     courseId: string,
     userFormSubmissionId: string,
-    amount: number
+    amount: number,
+    metadata: Record<string, any> = {},
   ): Promise<PaymentTransaction> {
     // Check for existing pending transaction for this user and course
     const existingTransaction = await this.paymentTransactionModel.findOne({
@@ -37,6 +38,10 @@ export class PaymentTransactionService {
     if (existingTransaction) {
       // Update existing transaction with new amount and timestamp
       existingTransaction.amount = amount;
+      existingTransaction.metadata = {
+        ...existingTransaction.metadata,
+        ...metadata,
+      };
       existingTransaction.updated_at = new Date();
       await existingTransaction.save();
       return existingTransaction;
@@ -49,6 +54,7 @@ export class PaymentTransactionService {
       amount,
       status: PaymentTransactionStatus.PENDING,
       transfer_code: "TEMP", // Temporary, will update after save
+      metadata,
       created_at: new Date(),
       updated_at: new Date(),
       is_deleted: false,

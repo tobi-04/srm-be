@@ -9,6 +9,7 @@ import {
   IndicatorPayment,
   IndicatorPaymentSchema,
 } from "./entities/indicator-payment.entity";
+import { Coupon, CouponSchema } from "../book-store/entities/coupon.entity";
 import { IndicatorStoreController } from "./indicator-store.controller";
 import { AdminIndicatorController } from "./admin-indicator.controller";
 import { IndicatorStoreService } from "./indicator-store.service";
@@ -25,6 +26,7 @@ import { PaymentModule } from "../payment/payment.module";
       { name: Indicator.name, schema: IndicatorSchema },
       { name: IndicatorSubscription.name, schema: IndicatorSubscriptionSchema },
       { name: IndicatorPayment.name, schema: IndicatorPaymentSchema },
+      { name: Coupon.name, schema: CouponSchema },
     ]),
     RedisCacheModule,
     forwardRef(() => UserModule),

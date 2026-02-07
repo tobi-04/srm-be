@@ -39,6 +39,8 @@ export class BookOrderService {
   async checkout(dto: CreateBookOrderDto) {
     const { book_id, email, name, phone, coupon_code } = dto;
 
+    const PAYMENT_FEE = parseInt(process.env.PAYMENT_FEE || "700");
+
     // 1. Verify book exists
     const book = await this.bookStoreService.findOne(book_id);
     if (!book) {
@@ -46,15 +48,16 @@ export class BookOrderService {
     }
 
     // 2. Calculate initial price with book's own discount
-    let finalPrice = book.price;
+    let basePrice = book.price;
     const bookDiscount = book.discount_percentage || 0;
     if (bookDiscount > 0) {
-      finalPrice = Math.floor(book.price * (1 - bookDiscount / 100));
+      basePrice = Math.floor(book.price * (1 - bookDiscount / 100));
     }
 
     // 3. Handle Coupon if provided
     let appliedCouponId = null;
     let couponDiscountAmount = 0;
+    let priceAfterCoupon = basePrice;
 
     if (coupon_code) {
       const normalizedCode = coupon_code.trim().toUpperCase();
@@ -83,19 +86,16 @@ export class BookOrderService {
 
       // Apply Coupon
       if (coupon.type === CouponType.PERCENTAGE) {
-        couponDiscountAmount = Math.floor(finalPrice * (coupon.value / 100));
+        couponDiscountAmount = Math.floor(basePrice * (coupon.value / 100));
       } else {
         couponDiscountAmount = coupon.value;
       }
 
-      finalPrice = Math.max(0, finalPrice - couponDiscountAmount);
+      priceAfterCoupon = Math.max(0, basePrice - couponDiscountAmount);
       appliedCouponId = coupon._id;
-
-      // Update usage count ONLY after all validations pass
-      await this.couponModel.findByIdAndUpdate(coupon._id, {
-        $inc: { usage_count: 1 },
-      });
     }
+
+    const finalPrice = priceAfterCoupon + PAYMENT_FEE;
 
     // 4. Find or create user
     let user = await this.userService.findByEmail(email.toLowerCase().trim());
@@ -141,6 +141,7 @@ export class BookOrderService {
         book_discount_percentage: bookDiscount,
         coupon_code: coupon_code?.toUpperCase(),
         coupon_discount_amount: couponDiscountAmount,
+        payment_fee: PAYMENT_FEE,
       };
 
       // Regenerate QR code with updated amount
@@ -183,6 +184,7 @@ export class BookOrderService {
         book_discount_percentage: bookDiscount,
         coupon_code: coupon_code?.toUpperCase(),
         coupon_discount_amount: couponDiscountAmount,
+        payment_fee: PAYMENT_FEE,
       },
     });
 
@@ -268,6 +270,19 @@ export class BookOrderService {
     order.paid_at = new Date();
     order.sepay_transaction_id = sepayTransactionId;
     await order.save();
+
+    // Increment coupon usage count if applied
+    if (order.metadata?.coupon_code) {
+      try {
+        await this.couponModel.updateOne(
+          { code: order.metadata.coupon_code.toUpperCase() },
+          { $inc: { usage_count: 1 } },
+        );
+        this.logger.log(`✅ Coupon usage incremented for: ${order.metadata.coupon_code}`);
+      } catch (couponErr) {
+        this.logger.error(`❌ Failed to increment coupon usage: ${couponErr.message}`);
+      }
+    }
 
     const items = await this.bookOrderItemModel.find({ order_id: order._id });
     for (const item of items) {

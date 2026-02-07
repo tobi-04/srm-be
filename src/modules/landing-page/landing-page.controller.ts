@@ -11,6 +11,7 @@ import {
   HttpStatus,
   UseGuards,
   Request,
+  BadRequestException,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -41,23 +42,34 @@ export class LandingPageController {
   constructor(private readonly landingPageService: LandingPageService) {}
 
   @Post()
-  @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles("admin")
+  @UseGuards(OptionalJwtGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: "Create a new landing page (Admin only)" })
+  @ApiOperation({ summary: "Create a new landing page (Admin or auto-create)" })
   @ApiResponse({
     status: 201,
     description: "Landing page created successfully",
   })
   @ApiResponse({ status: 400, description: "Bad request - validation failed" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
-  @ApiResponse({ status: 403, description: "Forbidden - Admin only" })
-  async create(@Body() createLandingPageDto: CreateLandingPageDto) {
+  @ApiResponse({ status: 403, description: "Forbidden - Admin only for manual creation" })
+  async create(
+    @Body() createLandingPageDto: CreateLandingPageDto,
+    @Request() req: any,
+  ) {
     console.log(
       "📝 POST /landing-pages - Creating landing page:",
       createLandingPageDto,
     );
+
+    // If user is not admin, only allow auto-create with status = draft
+    const isAdmin = req.user?.role === "admin";
+    if (!isAdmin && createLandingPageDto.status !== "draft") {
+      throw new BadRequestException(
+        "Only admins can create published landing pages",
+      );
+    }
+
     const result = await this.landingPageService.create(createLandingPageDto);
     console.log("✅ POST /landing-pages - Landing page created:", result);
     return result;

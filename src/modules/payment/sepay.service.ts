@@ -9,6 +9,8 @@ export class SePayService {
   private readonly accountNumber: string;
   private readonly bankId: string;
   private readonly systemCode: string;
+  private readonly bankName: string;
+  private readonly accName: string;
   private logger = new Logger(SePayService.name);
 
   constructor(private readonly configService: ConfigService) {
@@ -28,13 +30,21 @@ export class SePayService {
       this.configService.get<string>("PAYMENT_QR_BANK_CODE") ||
       process.env.PAYMENT_QR_BANK_CODE ||
       "";
+    this.bankName =
+      this.configService.get<string>("PAYMENT_QR_BANK_NAME") ||
+      process.env.PAYMENT_QR_BANK_NAME ||
+      "MBBank";
+    this.accName =
+      this.configService.get<string>("PAYMENT_QR_ACC_NAME") ||
+      process.env.PAYMENT_QR_ACC_NAME ||
+      "TRINH VAN TOAN";
     this.systemCode =
       this.configService.get<string>("PAYMENT_SYSTEM_CODE") ||
       process.env.PAYMENT_SYSTEM_CODE ||
       "ZLP";
 
     this.logger.log(
-      `SePay Config: BaseUrl=${this.baseUrl}, BankAcc=${this.accountNumber}, BankCode=${this.bankId}, SystemCode=${this.systemCode}`
+      `SePay Config: BaseUrl=${this.baseUrl}, BankAcc=${this.accountNumber}, BankCode=${this.bankId}, BankName=${this.bankName}, AccName=${this.accName}, SystemCode=${this.systemCode}`
     );
   }
 
@@ -47,8 +57,9 @@ export class SePayService {
       bankFromApi?.acc_no || bankFromApi?.account_number || this.accountNumber;
     const bankCode =
       bankFromApi?.bank_code || bankFromApi?.bank_id || this.bankId;
-    const accName = bankFromApi?.acc_name || bankFromApi?.account_name || "";
-    const bankName = bankFromApi?.bank_name || "";
+    const accName =
+      bankFromApi?.acc_name || bankFromApi?.account_name || this.accName;
+    const bankName = bankFromApi?.bank_name || this.bankName;
 
     const qrUrl = `https://qr.sepay.vn/img?acc=${accNo}&bank=${bankCode}&amount=${amount}&des=${this.systemCode}${paymentId}`;
 

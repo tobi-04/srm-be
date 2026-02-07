@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsNotEmpty, IsMongoId } from "class-validator";
+import { IsString, IsNumber, IsNotEmpty, IsMongoId, IsOptional } from "class-validator";
 
 export class CreatePaymentTransactionDto {
   @IsMongoId()
@@ -12,4 +12,8 @@ export class CreatePaymentTransactionDto {
   @IsNumber()
   @IsNotEmpty()
   course_price: number;
+
+  @IsString()
+  @IsOptional()
+  coupon_code?: string;
 }

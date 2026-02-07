@@ -267,11 +267,11 @@ export class EmailAutomationService {
     // Validate that at least one scheduling method is provided
     if (
       dto.delay_minutes === undefined &&
-      dto.delay_minutes !== 0 &&
+      dto.delay_days === undefined &&
       !dto.scheduled_at
     ) {
       throw new BadRequestException(
-        "Either delay_minutes or scheduled_at must be provided",
+        "Either delay_minutes, delay_days, or scheduled_at must be provided",
       );
     }
 

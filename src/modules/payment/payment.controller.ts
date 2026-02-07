@@ -14,7 +14,14 @@ import { SePayService } from "./sepay.service";
 import { LandingPageService } from "../landing-page/landing-page.service";
 import { UserService } from "../user/user.service";
 import { CourseService } from "../course/course.service";
-import { Types } from "mongoose";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model, Types } from "mongoose";
+import {
+  Coupon,
+  CouponDocument,
+  CouponType,
+  ApplicableResourceType,
+} from "../book-store/entities/coupon.entity";
 
 @Controller("payment")
 export class PaymentController {
@@ -28,6 +35,8 @@ export class PaymentController {
     private readonly landingPageService: LandingPageService,
     private readonly userService: UserService,
     private readonly courseService: CourseService,
+    @InjectModel(Coupon.name)
+    private readonly couponModel: Model<CouponDocument>,
   ) {
     this.paymentFee = parseInt(
       this.configService.get<string>("PAYMENT_FEE") || "700",
@@ -55,8 +64,49 @@ export class PaymentController {
     const coursePrice = course.price || 0;
     console.log("💰 Course price fetched from DB:", coursePrice);
 
+    let finalPrice = coursePrice;
+    let couponDiscountAmount = 0;
+
+    // Apply Coupon if provided
+    if (dto.coupon_code) {
+      const normalizedCode = dto.coupon_code.trim().toUpperCase();
+      const coupon = await this.couponModel.findOne({ code: normalizedCode });
+
+      if (!coupon) {
+        throw new BadRequestException("Mã giảm giá không tồn tại");
+      }
+
+      if (!coupon.is_active) {
+        throw new BadRequestException("Mã giảm giá đã bị vô hiệu hóa");
+      }
+
+      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
+        throw new BadRequestException("Mã giảm giá đã hết hạn");
+      }
+
+      if (coupon.usage_limit > 0 && coupon.usage_count >= coupon.usage_limit) {
+        throw new BadRequestException("Mã giảm giá đã hết lượt sử dụng");
+      }
+
+      // Check if applicable to COURSE
+      if (
+        !coupon.applicable_to.includes(ApplicableResourceType.ALL) &&
+        !coupon.applicable_to.includes(ApplicableResourceType.COURSE)
+      ) {
+        throw new BadRequestException("Mã giảm giá không áp dụng cho khóa học");
+      }
+
+      if (coupon.type === CouponType.PERCENTAGE) {
+        couponDiscountAmount = Math.floor(finalPrice * (coupon.value / 100));
+      } else {
+        couponDiscountAmount = coupon.value;
+      }
+
+      finalPrice = Math.max(0, finalPrice - couponDiscountAmount);
+    }
+
     // Calculate total amount
-    const totalAmount = coursePrice + this.paymentFee;
+    const totalAmount = finalPrice + this.paymentFee;
 
     // Check if user is already enrolled
     const submission = await this.landingPageService.findUserSubmissionById(
@@ -81,6 +131,13 @@ export class PaymentController {
       dto.course_id,
       dto.user_submission_id,
       totalAmount,
+      {
+        original_price: coursePrice,
+        coupon_code: dto.coupon_code?.toUpperCase(),
+        coupon_discount_amount: couponDiscountAmount,
+        fee: this.paymentFee,
+        course_title: course.title,
+      },
     );
 
     // Generate QR code and bank data using SePayService

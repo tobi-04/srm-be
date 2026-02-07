@@ -14,6 +14,12 @@ import {
   IndicatorPayment,
   PaymentStatus,
 } from "./entities/indicator-payment.entity";
+import {
+  Coupon,
+  CouponDocument,
+  CouponType,
+  ApplicableResourceType,
+} from "../book-store/entities/coupon.entity";
 import { CreateSubscriptionDto } from "./dto/subscription.dto";
 import { IndicatorStoreService } from "./indicator-store.service";
 import { SePayService } from "../payment/sepay.service";
@@ -35,6 +41,8 @@ export class SubscriptionService {
     private readonly subscriptionModel: Model<IndicatorSubscription>,
     @InjectModel(IndicatorPayment.name)
     private readonly paymentModel: Model<IndicatorPayment>,
+    @InjectModel(Coupon.name)
+    private readonly couponModel: Model<CouponDocument>,
     private readonly indicatorService: IndicatorStoreService,
     private readonly sePayService: SePayService,
     private readonly userService: UserService,
@@ -46,7 +54,9 @@ export class SubscriptionService {
    * Flow tương tự book checkout
    */
   async subscribe(dto: CreateSubscriptionDto) {
-    const { indicator_id, email, name, phone, auto_renew } = dto;
+    const { indicator_id, email, name, phone, auto_renew, coupon_code } = dto;
+
+    const PAYMENT_FEE = parseInt(process.env.PAYMENT_FEE || "700");
 
     // 1. Verify indicator exists and is active
     const indicator = await this.indicatorService.findOne(indicator_id);
@@ -54,7 +64,53 @@ export class SubscriptionService {
       throw new NotFoundException("Indicator not found");
     }
 
-    const price = indicator.price_monthly;
+    let basePrice = indicator.price_monthly;
+    let appliedCouponId = null;
+    let couponDiscountAmount = 0;
+    let priceAfterCoupon = basePrice;
+
+    // 1.5 Handle Coupon
+    if (coupon_code) {
+      const normalizedCode = coupon_code.trim().toUpperCase();
+      const coupon = await this.couponModel.findOne({ code: normalizedCode });
+
+      if (!coupon) {
+        throw new BadRequestException("Mã giảm giá không tồn tại");
+      }
+
+      if (!coupon.is_active) {
+        throw new BadRequestException("Mã giảm giá đã bị vô hiệu hóa");
+      }
+
+      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
+        throw new BadRequestException("Mã giảm giá đã hết hạn");
+      }
+
+      if (coupon.usage_limit > 0 && coupon.usage_count >= coupon.usage_limit) {
+        throw new BadRequestException("Mã giảm giá đã hết lượt sử dụng");
+      }
+
+      // Check if applicable to INDICATOR
+      if (
+        !coupon.applicable_to.includes(ApplicableResourceType.ALL) &&
+        !coupon.applicable_to.includes(ApplicableResourceType.INDICATOR)
+      ) {
+        throw new BadRequestException(
+          "Mã giảm giá không áp dụng cho indicator",
+        );
+      }
+
+      if (coupon.type === CouponType.PERCENTAGE) {
+        couponDiscountAmount = Math.floor(basePrice * (coupon.value / 100));
+      } else {
+        couponDiscountAmount = coupon.value;
+      }
+
+      priceAfterCoupon = Math.max(0, basePrice - couponDiscountAmount);
+      appliedCouponId = coupon._id;
+    }
+
+    const finalPrice = priceAfterCoupon + PAYMENT_FEE;
 
     // 2. Find or create user
     let user = await this.userService.findByEmail(email.toLowerCase().trim());
@@ -88,11 +144,15 @@ export class SubscriptionService {
         customer_name: name,
         customer_phone: phone,
         indicator_name: indicator.name,
-        price: price,
+        price: finalPrice,
+        original_price: indicator.price_monthly,
+        coupon_code: coupon_code?.toUpperCase(),
+        coupon_discount_amount: couponDiscountAmount,
+        payment_fee: PAYMENT_FEE,
       };
 
       const qrData = await this.sePayService.createQR(
-        price,
+        finalPrice,
         existingSubscription.transfer_code,
       );
       existingSubscription.qr_code_url = qrData.qr_url;
@@ -103,7 +163,7 @@ export class SubscriptionService {
         subscription_id: existingSubscription._id,
         qr_code_url: qrData.qr_url,
         transfer_code: existingSubscription.transfer_code,
-        amount: price,
+        amount: finalPrice,
         bank: qrData.bank,
         is_new_user: isNewUser,
         email: user.email,
@@ -122,7 +182,11 @@ export class SubscriptionService {
         customer_phone: phone,
         is_new_user: isNewUser,
         indicator_name: indicator.name,
-        price: price,
+        price: finalPrice,
+        original_price: indicator.price_monthly,
+        coupon_code: coupon_code?.toUpperCase(),
+        coupon_discount_amount: couponDiscountAmount,
+        payment_fee: PAYMENT_FEE,
       },
     });
 
@@ -132,7 +196,7 @@ export class SubscriptionService {
     subscription.transfer_code = transferCode;
 
     // 6. Generate SePay QR
-    const qrData = await this.sePayService.createQR(price, transferCode);
+    const qrData = await this.sePayService.createQR(finalPrice, transferCode);
     subscription.qr_code_url = qrData.qr_url;
 
     await subscription.save();
@@ -141,7 +205,7 @@ export class SubscriptionService {
       subscription_id: subscription._id,
       qr_code_url: qrData.qr_url,
       transfer_code: transferCode,
-      amount: price,
+      amount: finalPrice,
       bank: qrData.bank,
       is_new_user: isNewUser,
       email: user.email,
@@ -205,6 +269,23 @@ export class SubscriptionService {
     subscription.start_at = startAt;
     subscription.end_at = endAt;
     await subscription.save();
+
+    // Increment coupon usage count if applied
+    if (subscription.metadata?.coupon_code) {
+      try {
+        await this.couponModel.updateOne(
+          { code: subscription.metadata.coupon_code.toUpperCase() },
+          { $inc: { usage_count: 1 } },
+        );
+        this.logger.log(
+          `✅ Coupon usage incremented for: ${subscription.metadata.coupon_code}`,
+        );
+      } catch (couponErr) {
+        this.logger.error(
+          `❌ Failed to increment coupon usage: ${couponErr.message}`,
+        );
+      }
+    }
 
     // Create payment record
     const payment = new this.paymentModel({

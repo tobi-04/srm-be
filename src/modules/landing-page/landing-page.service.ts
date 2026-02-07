@@ -118,10 +118,13 @@ export class LandingPageService {
       );
     }
 
+    // If landing page already exists, return the existing one (for auto-create scenario)
     if (existingLandingPages && existingLandingPages.length > 0) {
-      throw new BadRequestException(
-        "A landing page already exists for this resource",
+      console.log(
+        "✅ Landing page already exists, returning existing:",
+        existingLandingPages[0],
       );
+      return existingLandingPages[0];
     }
 
     // Use provided slug or generate from title
@@ -152,8 +155,12 @@ export class LandingPageService {
 
     const filter: any = {};
 
-    // If not admin, only show published landing pages
-    if (!isAdmin) {
+    // If searching by book_id or indicator_id, allow draft status
+    // This is needed for auto-create flow to work properly
+    const isResourceQuery = searchDto.book_id || searchDto.indicator_id;
+
+    // If not admin and not a resource query, only show published landing pages
+    if (!isAdmin && !isResourceQuery) {
       filter.status = "published";
     } else if (status) {
       filter.status = status;
@@ -173,6 +180,7 @@ export class LandingPageService {
       useCache: true,
       cacheTTL: 300,
       includeDeleted: false, // Never include soft-deleted items
+      populate: ["course_id", "book_id", "indicator_id"], // Populate references
     });
 
     return result;

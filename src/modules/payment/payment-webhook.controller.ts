@@ -20,6 +20,12 @@ import { OrderStatus } from "../order/entities/order.entity";
 import { SepayWebhookDto } from "./dto/sepay-webhook.dto";
 import { PaymentTransactionStatus } from "../payment-transaction/entities/payment-transaction.entity";
 import { UserRole } from "../user/entities/user.entity";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
+import {
+  Coupon,
+  CouponDocument,
+} from "../book-store/entities/coupon.entity";
 import * as bcrypt from "bcryptjs";
 
 @Controller("payment/webhook")
@@ -35,6 +41,8 @@ export class PaymentWebhookController {
     private readonly landingPageService: LandingPageService,
     private readonly orderService: OrderService,
     private readonly eventEmitter: EventEmitter2,
+    @InjectModel(Coupon.name)
+    private readonly couponModel: Model<CouponDocument>,
   ) {
     this.webhookSecretKey =
       this.configService.get<string>("PAYMENT_WEBHOOK_SECRET_KEY") || "";
@@ -75,26 +83,50 @@ export class PaymentWebhookController {
     const systemCode =
       this.configService.get<string>("PAYMENT_SYSTEM_CODE") || "ZLP";
 
-    // If code field is missing or not a ZLP code, try to extract from content
-    if (!transferCode || !transferCode.startsWith(systemCode)) {
+    // If code field is missing or not a known code format, try to extract from content
+    const isValidFormat = (code: string) =>
+      code.startsWith(systemCode) ||
+      code.startsWith("BZLP") ||
+      code.startsWith("INDP");
+
+    if (!transferCode || !isValidFormat(transferCode)) {
       this.logger.log(
-        `🔍 Code field '${transferCode}' not valid. Searching in content...`,
+        `🔍 Code field '${transferCode}' not valid or missing. Searching in content...`,
       );
       const content = webhookData.content || "";
-      // Regex to find ZLP followed by alphanumeric characters (at least 10 chars for ID)
-      const regex = new RegExp(`${systemCode}[A-Z0-9]{10,}`, "i");
-      const match = content.match(regex);
 
-      if (match) {
-        transferCode = match[0].toUpperCase();
-        this.logger.log(`🎯 Extracted code from content: ${transferCode}`);
+      // Try to find BZLP or INDP first as they are more specific
+      const bookRegex = /BZLP[A-Z0-9]{6,}/i;
+      const indicatorRegex = /INDP[A-Z0-9]{6,}/i;
+      const courseRegex = new RegExp(`${systemCode}[A-Z0-9]{6,}`, "i");
+
+      const bookMatch = content.match(bookRegex);
+      const indicatorMatch = content.match(indicatorRegex);
+      const courseMatch = content.match(courseRegex);
+
+      if (bookMatch) {
+        transferCode = bookMatch[0].toUpperCase();
+        this.logger.log(`🎯 Extracted Book code from content: ${transferCode}`);
+      } else if (indicatorMatch) {
+        transferCode = indicatorMatch[0].toUpperCase();
+        this.logger.log(`🎯 Extracted Indicator code from content: ${transferCode}`);
+      } else if (courseMatch) {
+        transferCode = courseMatch[0].toUpperCase();
+
+        // If it starts with ZLPBZLP, strip the first ZLP
+        if (transferCode.startsWith(systemCode + "BZLP")) {
+          transferCode = transferCode.substring(systemCode.length);
+          this.logger.log(`🎯 Cleaned Book code: ${transferCode}`);
+        } else if (transferCode.startsWith(systemCode + "INDP")) {
+          transferCode = transferCode.substring(systemCode.length);
+          this.logger.log(`🎯 Cleaned Indicator code: ${transferCode}`);
+        } else {
+          this.logger.log(`🎯 Extracted Course code from content: ${transferCode}`);
+        }
       }
     }
 
-    if (
-      !transferCode ||
-      (!transferCode.startsWith(systemCode) && !transferCode.startsWith("BZLP"))
-    ) {
+    if (!transferCode) {
       this.logger.error(
         `❌ No valid transfer code found in code or content. Content: ${webhookData.content}`,
       );
@@ -171,6 +203,23 @@ export class PaymentWebhookController {
     );
 
     this.logger.log("✅ Transaction status updated to COMPLETED");
+
+    // Increment coupon usage count if applied
+    if (transaction.metadata?.coupon_code) {
+      try {
+        await this.couponModel.updateOne(
+          { code: transaction.metadata.coupon_code.toUpperCase() },
+          { $inc: { usage_count: 1 } },
+        );
+        this.logger.log(
+          `✅ Coupon usage incremented for: ${transaction.metadata.coupon_code}`,
+        );
+      } catch (couponErr) {
+        this.logger.error(
+          `❌ Failed to increment coupon usage: ${couponErr.message}`,
+        );
+      }
+    }
 
     // 6. Get user form submission to find email
     // Note: We need to add a method to get submission by ID

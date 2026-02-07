@@ -10,6 +10,13 @@ import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsEnum,
+} from "class-validator";
+import {
   Coupon,
   CouponDocument,
   CouponType,
@@ -17,10 +24,24 @@ import {
 } from "../book-store/entities/coupon.entity";
 
 class ValidateCouponDto {
+  @IsString()
+  @IsNotEmpty()
   code: string;
+
+  @IsString()
+  @IsNotEmpty()
   resource_type: string;
-  resource_id: string;
-  price: number;
+
+  @IsString()
+  @IsOptional()
+  resource_id?: string;
+
+  @IsNumber()
+  @IsNotEmpty()
+  original_price: number;
+
+  @IsNumber()
+  @IsOptional()
   default_discount?: number;
 }
 
@@ -37,7 +58,12 @@ export class CouponController {
   @ApiOperation({ summary: "Validate a coupon code" })
   @ApiResponse({ status: 200, description: "Coupon validation result" })
   async validateCoupon(@Body() dto: ValidateCouponDto) {
-    const { code, resource_type, price, default_discount = 0 } = dto;
+    const {
+      code,
+      resource_type,
+      original_price: price,
+      default_discount = 0,
+    } = dto;
 
     // Find coupon
     const coupon = await this.couponModel.findOne({

@@ -42,4 +42,12 @@ export class CreateSubscriptionDto {
   @IsOptional()
   @IsBoolean()
   auto_renew?: boolean;
+
+  @ApiPropertyOptional({
+    description: "Coupon code",
+    example: "SALE10",
+  })
+  @IsOptional()
+  @IsString()
+  coupon_code?: string;
 }

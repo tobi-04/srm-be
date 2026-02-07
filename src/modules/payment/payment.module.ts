@@ -6,6 +6,7 @@ import { PaymentWebhookController } from "./payment-webhook.controller";
 import { PaymentService } from "./payment.service";
 import { SePayService } from "./sepay.service";
 import { Payment, PaymentSchema } from "./entities/payment.entity";
+import { Coupon, CouponSchema } from "../book-store/entities/coupon.entity";
 import { PaymentTransactionModule } from "../payment-transaction/payment-transaction.module";
 import { CourseEnrollmentModule } from "../course-enrollment/course-enrollment.module";
 import { UserModule } from "../user/user.module";
@@ -15,7 +16,10 @@ import { CourseModule } from "../course/course.module";
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Payment.name, schema: PaymentSchema }]),
+    MongooseModule.forFeature([
+      { name: Payment.name, schema: PaymentSchema },
+      { name: Coupon.name, schema: CouponSchema },
+    ]),
     ConfigModule,
     PaymentTransactionModule,
     CourseEnrollmentModule,
