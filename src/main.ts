@@ -6,9 +6,26 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS with specific origin for credentials support
+  // Enable CORS. When sending credentials, Access-Control-Allow-Origin
+  // must be a specific origin (not '*'). Read allowed origins from
+  // environment variable `CORS_ORIGIN` (comma-separated). If not set,
+  // default to allowing all origins for non-credential requests.
+  const rawCors = process.env.CORS_ORIGIN || '';
+  const allowedOrigins = rawCors.split(',').map(s => s.trim()).filter(Boolean);
+
   app.enableCors({
-    origin: '*',
+    origin: (origin, callback) => {
+      // Allow non-browser requests (e.g., curl) where origin is undefined
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.length === 0) {
+        // No configured origins -> allow all
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('CORS not allowed'), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
