@@ -14,18 +14,7 @@ async function bootstrap() {
   const allowedOrigins = rawCors.split(',').map(s => s.trim()).filter(Boolean);
 
   app.enableCors({
-    origin: (origin, callback) => {
-      // Allow non-browser requests (e.g., curl) where origin is undefined
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.length === 0) {
-        // No configured origins -> allow all
-        return callback(null, true);
-      }
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error('CORS not allowed'), false);
-    },
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
