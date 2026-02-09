@@ -203,26 +203,62 @@ export class AnalyticsService {
   async getRevenueTrend(days: number = 30) {
     const now = dayjs();
     const startDate = now.subtract(days, "day").startOf("day").toDate();
+    const endDate = now.endOf("day").toDate();
 
-    const trend = await this.paymentTransactionModel.aggregate([
-      {
-        $match: {
-          status: PaymentTransactionStatus.COMPLETED,
-          paid_at: { $gte: startDate },
-          is_deleted: false,
+    const [trendCourse, trendBook, trendInd] = await Promise.all([
+      this.paymentTransactionModel.aggregate([
+        {
+          $match: {
+            status: PaymentTransactionStatus.COMPLETED,
+            paid_at: { $gte: startDate, $lte: endDate },
+            is_deleted: false,
+          },
         },
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$paid_at" } },
-          amount: { $sum: "$amount" },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$paid_at" } },
+            amount: { $sum: "$amount" },
+          },
         },
-      },
-      { $sort: { _id: 1 } },
+      ]),
+      this.bookOrderModel.aggregate([
+        {
+          $match: {
+            status: BookOrderStatus.PAID,
+            paid_at: { $gte: startDate, $lte: endDate },
+            is_deleted: false,
+          },
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$paid_at" } },
+            amount: { $sum: "$total_amount" },
+          },
+        },
+      ]),
+      this.indicatorPaymentModel.aggregate([
+        {
+          $match: {
+            status: PaymentStatus.PAID,
+            paid_at: { $gte: startDate, $lte: endDate },
+            is_deleted: false,
+          },
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$paid_at" } },
+            amount: { $sum: "$amount" },
+          },
+        },
+      ]),
     ]);
 
-    // Create a map for quick lookup
-    const trendMap = new Map(trend.map((item) => [item._id, item.amount]));
+    // Create a map for quick lookup and combine all sources
+    const trendMap = new Map();
+    [...trendCourse, ...trendBook, ...trendInd].forEach((item) => {
+      trendMap.set(item._id, (trendMap.get(item._id) || 0) + item.amount);
+    });
+
     const result = [];
 
     // Fill in last X days
