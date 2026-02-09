@@ -38,6 +38,16 @@ export class CreateAutomationDto {
   @IsOptional()
   target_group?: TargetGroup;
 
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  product_type?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  product_id?: string;
+
   @ApiProperty({ type: [String], required: false })
   @IsString({ each: true })
   @IsOptional()
@@ -74,6 +84,16 @@ export class UpdateAutomationDto {
   @IsEnum(TargetGroup)
   @IsOptional()
   target_group?: TargetGroup;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  product_type?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  product_id?: string;
 
   @ApiProperty({ type: [String], required: false })
   @IsString({ each: true })

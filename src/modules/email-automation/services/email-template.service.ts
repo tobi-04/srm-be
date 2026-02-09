@@ -43,7 +43,7 @@ export class EmailTemplateService {
   getAvailableVariables(eventType: EventType): string[] {
     const commonVariables = ["{{user.name}}", "{{user.email}}"];
 
-    const eventSpecificVariables: Record<EventType, string[]> = {
+    const eventSpecificVariables: Record<string, string[]> = {
       [EventType.USER_REGISTERED]: [...commonVariables],
       [EventType.COURSE_PURCHASED]: [
         ...commonVariables,
@@ -54,7 +54,28 @@ export class EmailTemplateService {
         "{{temp_password}}",
         "{{is_new_user}}",
       ],
+      [EventType.BOOK_PURCHASED]: [
+        ...commonVariables,
+        "{{book.title}}",
+        "{{order.amount}}",
+        "{{order.id}}",
+      ],
+      [EventType.INDICATOR_PURCHASED]: [
+        ...commonVariables,
+        "{{indicator.name}}",
+        "{{subscription.amount}}",
+        "{{subscription.start_at}}",
+        "{{subscription.end_at}}",
+      ],
       [EventType.USER_REGISTERED_BUT_NOT_PURCHASED]: [
+        ...commonVariables,
+        "{{daysSinceRegistration}}",
+      ],
+      [EventType.USER_REGISTERED_BUT_NOT_PURCHASED_BOOK]: [
+        ...commonVariables,
+        "{{daysSinceRegistration}}",
+      ],
+      [EventType.USER_REGISTERED_BUT_NOT_PURCHASED_INDICATOR]: [
         ...commonVariables,
         "{{daysSinceRegistration}}",
       ],
@@ -79,7 +100,7 @@ export class EmailTemplateService {
    * Get template preview with sample data
    */
   getTemplatePreview(template: string, eventType: EventType): string {
-    const sampleData: Record<EventType, TemplateVariables> = {
+    const sampleData: Record<string, TemplateVariables> = {
       [EventType.USER_REGISTERED]: {
         user: {
           name: "John Doe",
@@ -102,12 +123,34 @@ export class EmailTemplateService {
         temp_password: "ZLP123456",
         is_new_user: true,
       },
+      [EventType.BOOK_PURCHASED]: {
+        user: { name: "John Doe", email: "john@example.com" },
+        book: { title: "Ebook Trading 101" },
+        order: { amount: 150000, id: "ORDER123" },
+      },
+      [EventType.INDICATOR_PURCHASED]: {
+        user: { name: "John Doe", email: "john@example.com" },
+        indicator: { name: "Golden Signal Pro" },
+        subscription: {
+          amount: 500000,
+          start_at: new Date(),
+          end_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+      },
       [EventType.USER_REGISTERED_BUT_NOT_PURCHASED]: {
         user: {
           name: "John Doe",
           email: "john@example.com",
         },
         daysSinceRegistration: 3,
+      },
+      [EventType.USER_REGISTERED_BUT_NOT_PURCHASED_BOOK]: {
+        user: { name: "John Doe", email: "john@example.com" },
+        daysSinceRegistration: 1,
+      },
+      [EventType.USER_REGISTERED_BUT_NOT_PURCHASED_INDICATOR]: {
+        user: { name: "John Doe", email: "john@example.com" },
+        daysSinceRegistration: 1,
       },
     };
 

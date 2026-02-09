@@ -32,6 +32,16 @@ import {
   IndicatorSubscriptionDocument,
   SubscriptionStatus,
 } from "../indicator-store/entities/indicator-subscription.entity";
+import {
+  IndicatorPayment,
+  IndicatorPaymentDocument,
+  PaymentStatus,
+} from "../indicator-store/entities/indicator-payment.entity";
+import {
+  EmailLog,
+  EmailLogDocument,
+  EmailLogStatus,
+} from "../email-automation/entities/email-log.entity";
 import dayjs from "dayjs";
 import { Types } from "mongoose";
 
@@ -54,67 +64,119 @@ export class AnalyticsService {
     private bookOrderModel: Model<BookOrderDocument>,
     @InjectModel(IndicatorSubscription.name)
     private indicatorSubscriptionModel: Model<IndicatorSubscriptionDocument>,
+    @InjectModel(IndicatorPayment.name)
+    private indicatorPaymentModel: Model<IndicatorPaymentDocument>,
+    @InjectModel(EmailLog.name)
+    private emailLogModel: Model<EmailLogDocument>,
   ) {}
 
   async getDashboardSummary() {
     const now = dayjs();
+    const startOfToday = now.startOf("day").toDate();
     const thirtyDaysAgo = now.subtract(30, "day").toDate();
     const sixtyDaysAgo = now.subtract(60, "day").toDate();
 
-    // 1. Total Revenue (Last 30 days vs Previous 30 days)
-    const currentRevenue = await this.paymentTransactionModel.aggregate([
-      {
-        $match: {
-          status: PaymentTransactionStatus.COMPLETED,
-          paid_at: { $gte: thirtyDaysAgo },
-          is_deleted: false,
-        },
-      },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
+    // 1. Total Revenue (Last 30 days vs Previous 30 days) - Combined sources
+    const getRevenuePipeline = (startDate: Date, endDate?: Date) => {
+      const match: any = {
+        status: PaymentTransactionStatus.COMPLETED,
+        paid_at: endDate ? { $gte: startDate, $lt: endDate } : { $gte: startDate },
+        is_deleted: false,
+      };
+      return [{ $match: match }, { $group: { _id: null, total: { $sum: "$amount" } } }];
+    };
+
+    const getBookRevenuePipeline = (startDate: Date, endDate?: Date) => {
+      const match: any = {
+        status: BookOrderStatus.PAID,
+        paid_at: endDate ? { $gte: startDate, $lt: endDate } : { $gte: startDate },
+        is_deleted: false,
+      };
+      return [{ $match: match }, { $group: { _id: null, total: { $sum: "$total_amount" } } }];
+    };
+
+    const getIndicatorRevenuePipeline = (startDate: Date, endDate?: Date) => {
+      const match: any = {
+        status: PaymentStatus.PAID,
+        paid_at: endDate ? { $gte: startDate, $lt: endDate } : { $gte: startDate },
+        is_deleted: false,
+      };
+      return [{ $match: match }, { $group: { _id: null, total: { $sum: "$amount" } } }];
+    };
+
+    const [
+      currentCourseRev,
+      prevCourseRev,
+      currentBookRev,
+      prevBookRev,
+      currentIndRev,
+      prevIndRev,
+    ] = await Promise.all([
+      this.paymentTransactionModel.aggregate(getRevenuePipeline(thirtyDaysAgo)),
+      this.paymentTransactionModel.aggregate(getRevenuePipeline(sixtyDaysAgo, thirtyDaysAgo)),
+      this.bookOrderModel.aggregate(getBookRevenuePipeline(thirtyDaysAgo)),
+      this.bookOrderModel.aggregate(getBookRevenuePipeline(sixtyDaysAgo, thirtyDaysAgo)),
+      this.indicatorPaymentModel.aggregate(getIndicatorRevenuePipeline(thirtyDaysAgo)),
+      this.indicatorPaymentModel.aggregate(getIndicatorRevenuePipeline(sixtyDaysAgo, thirtyDaysAgo)),
     ]);
 
-    const prevRevenue = await this.paymentTransactionModel.aggregate([
-      {
-        $match: {
-          status: PaymentTransactionStatus.COMPLETED,
-          paid_at: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
-          is_deleted: false,
-        },
-      },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
-    ]);
+    const currentRevValue =
+      (currentCourseRev[0]?.total || 0) +
+      (currentBookRev[0]?.total || 0) +
+      (currentIndRev[0]?.total || 0);
 
-    const currentRevValue = currentRevenue[0]?.total || 0;
-    const prevRevValue = prevRevenue[0]?.total || 0;
+    const prevRevValue =
+      (prevCourseRev[0]?.total || 0) +
+      (prevBookRev[0]?.total || 0) +
+      (prevIndRev[0]?.total || 0);
+
     const revChange =
       prevRevValue === 0
         ? 100
         : ((currentRevValue - prevRevValue) / prevRevValue) * 100;
 
-    // 2. New Students (Last 7 days)
-    const sevenDaysAgo = now.subtract(7, "day").toDate();
-    const totalStudents = await this.userModel.countDocuments({
-      role: UserRole.USER,
-      is_deleted: false,
-    });
-    const newStudentsWeek = await this.userModel.countDocuments({
-      role: UserRole.USER,
-      created_at: { $gte: sevenDaysAgo },
+    // 2. New Students (Học viên mới hôm nay - Giao dịch đầu tiên hôm nay)
+    // Lấy danh sách user_id đã có giao dịch thành công TRƯỚC ngày hôm nay
+    const existingStudentIds = await this.paymentTransactionModel.distinct("user_form_submission_id", {
+      status: PaymentTransactionStatus.COMPLETED,
+      paid_at: { $lt: startOfToday },
       is_deleted: false,
     });
 
-    // 3. Active Lessons
-    const totalLessons = await this.lessonModel.countDocuments({
-      is_deleted: false,
-      is_active: true,
-    });
-
-    // 4. Completion Rate (Average)
-    const completionStats = await this.progressModel.aggregate([
-      { $match: { is_deleted: false } },
-      { $group: { _id: null, avgProgress: { $avg: "$progress_percent" } } },
+    // Đếm số user_id có giao dịch thành công LẦN ĐẦU TIÊN vào hôm nay
+    const newStudentsTodayCount = await this.paymentTransactionModel.aggregate([
+      {
+        $match: {
+          status: PaymentTransactionStatus.COMPLETED,
+          paid_at: { $gte: startOfToday },
+          is_deleted: false,
+          user_form_submission_id: { $nin: existingStudentIds },
+        },
+      },
+      {
+        $group: {
+          _id: "$user_form_submission_id",
+        },
+      },
+      {
+        $count: "total",
+      },
     ]);
-    const avgCompletion = completionStats[0]?.avgProgress || 0;
+
+    const newStudentsToday = newStudentsTodayCount[0]?.total || 0;
+
+    // 3. New Emails Today
+    const newEmailsToday = await this.emailLogModel.countDocuments({
+      status: EmailLogStatus.SENT,
+      sent_at: { $gte: startOfToday },
+      is_deleted: false,
+    });
+
+    // 4. Total Customers (Toàn bộ học viên trong hệ thống)
+    const totalCustomers = await this.userModel.countDocuments({
+      role: UserRole.USER,
+      is_deleted: false,
+    });
 
     return {
       revenue: {
@@ -123,21 +185,17 @@ export class AnalyticsService {
         label: "so với tháng trước",
       },
       students: {
-        total: totalStudents,
-        newThisWeek: newStudentsWeek,
-        change:
-          Math.round((newStudentsWeek / (totalStudents || 1)) * 100 * 10) / 10,
-        label: "tuần này",
+        total: totalCustomers,
+        newToday: newStudentsToday,
+        label: "hôm nay",
       },
-      lessons: {
-        total: totalLessons,
-        status: "Ổn định",
-        label: "trên khóa học",
+      emails: {
+        total: newEmailsToday,
+        label: "gửi hôm nay",
       },
-      completion: {
-        rate: Math.round(avgCompletion * 10) / 10,
-        change: 2.4, // Mock trend for now as we don't have historical progress readily
-        label: "trung bình hệ thống",
+      customers: {
+        total: totalCustomers,
+        label: "tổng học viên",
       },
     };
   }
@@ -669,7 +727,7 @@ export class AnalyticsService {
   }
 
   /**
-   * Get daily sales snapshot for the last N days
+   * Get daily sales snapshot for the last N days (Combined sources)
    */
   async getDailySalesSnapshot(days: number = 14) {
     const endDate = dayjs().endOf("day").toDate();
@@ -678,27 +736,59 @@ export class AnalyticsService {
       .startOf("day")
       .toDate();
 
-    const dailyData = await this.paymentTransactionModel.aggregate([
-      {
-        $match: {
-          status: PaymentTransactionStatus.COMPLETED,
-          paid_at: { $gte: startDate, $lte: endDate },
-          is_deleted: false,
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$paid_at" },
+    const [dailyCourse, dailyBook, dailyInd] = await Promise.all([
+      this.paymentTransactionModel.aggregate([
+        {
+          $match: {
+            status: PaymentTransactionStatus.COMPLETED,
+            paid_at: { $gte: startDate, $lte: endDate },
+            is_deleted: false,
           },
-          revenue: { $sum: "$amount" },
         },
-      },
-      { $sort: { _id: -1 } },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$paid_at" } },
+            revenue: { $sum: "$amount" },
+          },
+        },
+      ]),
+      this.bookOrderModel.aggregate([
+        {
+          $match: {
+            status: BookOrderStatus.PAID,
+            paid_at: { $gte: startDate, $lte: endDate },
+            is_deleted: false,
+          },
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$paid_at" } },
+            revenue: { $sum: "$total_amount" },
+          },
+        },
+      ]),
+      this.indicatorPaymentModel.aggregate([
+        {
+          $match: {
+            status: PaymentStatus.PAID,
+            paid_at: { $gte: startDate, $lte: endDate },
+            is_deleted: false,
+          },
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$paid_at" } },
+            revenue: { $sum: "$amount" },
+          },
+        },
+      ]),
     ]);
 
     // Create map of existing data
-    const dataMap = new Map(dailyData.map((d) => [d._id, d.revenue]));
+    const dataMap = new Map();
+    [...dailyCourse, ...dailyBook, ...dailyInd].forEach((d) => {
+      dataMap.set(d._id, (dataMap.get(d._id) || 0) + d.revenue);
+    });
 
     // Generate all days in range with data
     const result = [];
@@ -716,7 +806,7 @@ export class AnalyticsService {
   }
 
   /**
-   * Get weekly sales snapshot for the last N weeks
+   * Get weekly sales snapshot for the last N weeks (Combined sources)
    */
   async getWeeklySalesSnapshot(weeks: number = 4) {
     const result = [];
@@ -727,29 +817,48 @@ export class AnalyticsService {
         .endOf("day");
       const weekStart = weekEnd.subtract(6, "day").startOf("day");
 
-      const weekRevenue = await this.paymentTransactionModel.aggregate([
-        {
-          $match: {
-            status: PaymentTransactionStatus.COMPLETED,
-            paid_at: {
-              $gte: weekStart.toDate(),
-              $lte: weekEnd.toDate(),
+      const [weekCourse, weekBook, weekInd] = await Promise.all([
+        this.paymentTransactionModel.aggregate([
+          {
+            $match: {
+              status: PaymentTransactionStatus.COMPLETED,
+              paid_at: { $gte: weekStart.toDate(), $lte: weekEnd.toDate() },
+              is_deleted: false,
             },
-            is_deleted: false,
           },
-        },
-        {
-          $group: {
-            _id: null,
-            revenue: { $sum: "$amount" },
+          { $group: { _id: null, revenue: { $sum: "$amount" } } },
+        ]),
+        this.bookOrderModel.aggregate([
+          {
+            $match: {
+              status: BookOrderStatus.PAID,
+              paid_at: { $gte: weekStart.toDate(), $lte: weekEnd.toDate() },
+              is_deleted: false,
+            },
           },
-        },
+          { $group: { _id: null, revenue: { $sum: "$total_amount" } } },
+        ]),
+        this.indicatorPaymentModel.aggregate([
+          {
+            $match: {
+              status: PaymentStatus.PAID,
+              paid_at: { $gte: weekStart.toDate(), $lte: weekEnd.toDate() },
+              is_deleted: false,
+            },
+          },
+          { $group: { _id: null, revenue: { $sum: "$amount" } } },
+        ]),
       ]);
+
+      const totalRevenue =
+        (weekCourse[0]?.revenue || 0) +
+        (weekBook[0]?.revenue || 0) +
+        (weekInd[0]?.revenue || 0);
 
       result.push({
         weekEnding: weekEnd.format("YYYY-MM-DD"),
         weekLabel: `${weekStart.format("YYYY-MM-DD")} - ${weekEnd.format("YYYY-MM-DD")}`,
-        revenue: weekRevenue[0]?.revenue || 0,
+        revenue: totalRevenue,
       });
     }
 

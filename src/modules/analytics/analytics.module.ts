@@ -29,6 +29,14 @@ import {
   IndicatorSubscription,
   IndicatorSubscriptionSchema,
 } from "../indicator-store/entities/indicator-subscription.entity";
+import {
+  IndicatorPayment,
+  IndicatorPaymentSchema,
+} from "../indicator-store/entities/indicator-payment.entity";
+import {
+  EmailLog,
+  EmailLogSchema,
+} from "../email-automation/entities/email-log.entity";
 
 @Module({
   imports: [
@@ -42,6 +50,8 @@ import {
       { name: Order.name, schema: OrderSchema },
       { name: BookOrder.name, schema: BookOrderSchema },
       { name: IndicatorSubscription.name, schema: IndicatorSubscriptionSchema },
+      { name: IndicatorPayment.name, schema: IndicatorPaymentSchema },
+      { name: EmailLog.name, schema: EmailLogSchema },
     ]),
   ],
   controllers: [AnalyticsController],

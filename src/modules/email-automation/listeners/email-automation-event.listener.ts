@@ -35,6 +35,29 @@ export interface UserRegisteredNoPurchaseEvent {
   daysSinceRegistration: number;
 }
 
+export interface BookPurchasedEvent {
+  userId: string;
+  orderId: string;
+  email: string;
+  name: string;
+  amount: number;
+  books: { id: string; title: string }[];
+  purchasedAt: Date;
+}
+
+export interface IndicatorSubscribedEvent {
+  userId: string;
+  subscriptionId: string;
+  userEmail: string;
+  userName: string;
+  indicatorId: string;
+  indicatorName: string;
+  amount: number;
+  startAt: Date;
+  endAt: Date;
+  isNewUser: boolean;
+}
+
 @Injectable()
 export class EmailAutomationEventListener {
   private readonly logger = new Logger(EmailAutomationEventListener.name);
@@ -100,6 +123,71 @@ export class EmailAutomationEventListener {
       EventType.USER_REGISTERED_BUT_NOT_PURCHASED,
       payload,
     );
+
+    // Also trigger specific book/indicator non-purchase events for new registrations
+    if (payload.daysSinceRegistration === 0) {
+      await this.processEvent(EventType.USER_REGISTERED_BUT_NOT_PURCHASED_BOOK, {
+        ...payload,
+      });
+      await this.processEvent(
+        EventType.USER_REGISTERED_BUT_NOT_PURCHASED_INDICATOR,
+        { ...payload },
+      );
+    }
+  }
+
+  /**
+   * Handle book purchased event
+   */
+  @OnEvent("book.purchased")
+  async handleBookPurchased(payload: BookPurchasedEvent) {
+    this.logger.log(
+      `Book purchased event received: user ${payload.userId}, order ${payload.orderId}`,
+    );
+    await this.processEvent(EventType.BOOK_PURCHASED, {
+      ...payload,
+      user: {
+        name: payload.name,
+        email: payload.email,
+        id: payload.userId,
+      },
+      book: {
+        title: payload.books[0]?.title,
+        id: payload.books[0]?.id,
+      },
+      order: {
+        amount: payload.amount,
+        id: payload.orderId,
+      },
+    });
+  }
+
+  /**
+   * Handle indicator subscribed event
+   */
+  @OnEvent("indicator.subscribed")
+  async handleIndicatorSubscribed(payload: IndicatorSubscribedEvent) {
+    this.logger.log(
+      `Indicator subscribed event received: user ${payload.userId}, sub ${payload.subscriptionId}`,
+    );
+    await this.processEvent(EventType.INDICATOR_PURCHASED, {
+      ...payload,
+      user: {
+        name: payload.userName,
+        email: payload.userEmail,
+        id: payload.userId,
+      },
+      indicator: {
+        name: payload.indicatorName,
+        id: payload.indicatorId,
+      },
+      subscription: {
+        amount: payload.amount,
+        id: payload.subscriptionId,
+        start_at: payload.startAt,
+        end_at: payload.endAt,
+      },
+    });
   }
 
   /**
@@ -122,6 +210,30 @@ export class EmailAutomationEventListener {
 
       // For each automation, create jobs for all steps
       for (const automation of automations) {
+        // Filter by specific product if defined in automation
+        if (automation.product_id) {
+          let matchesProduct = false;
+          const pid = automation.product_id.toString();
+
+          if (eventType === EventType.COURSE_PURCHASED) {
+            matchesProduct = eventData.courseId?.toString() === pid;
+          } else if (eventType === EventType.BOOK_PURCHASED) {
+            // Check if any of the books match the product_id
+            matchesProduct = eventData.books?.some(
+              (b: any) => b.id?.toString() === pid,
+            );
+          } else if (eventType === EventType.INDICATOR_PURCHASED) {
+            matchesProduct = eventData.indicatorId?.toString() === pid;
+          }
+
+          if (!matchesProduct) {
+            this.logger.debug(
+              `Skipping automation ${automation.name} - product ID mismatch. Expected ${pid}`,
+            );
+            continue;
+          }
+        }
+
         const steps = await this.automationService.getSteps(
           automation._id.toString(),
         );

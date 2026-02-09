@@ -17,7 +17,10 @@ import {
   IndicatorPayment,
   PaymentStatus,
 } from '../indicator-store/entities/indicator-payment.entity';
-import { IndicatorSubscription } from '../indicator-store/entities/indicator-subscription.entity';
+import {
+  IndicatorSubscription,
+  SubscriptionStatus,
+} from '../indicator-store/entities/indicator-subscription.entity';
 import { User } from '../user/entities/user.entity';
 import { Course } from '../course/entities/course.entity';
 import { Book } from '../book-store/entities/book.entity';
@@ -246,7 +249,7 @@ export class ReportsService {
       const pipeline: any[] = [
         {
           $match: {
-            status: 'ACTIVE', // SubscriptionStatus.ACTIVE
+            status: SubscriptionStatus.ACTIVE,
             is_deleted: false,
             $or: [
               { start_at: dateFilter },

@@ -46,6 +46,32 @@ export class EmailAutomationController {
     return this.automationService.getAutomations(include);
   }
 
+  @Get("users")
+  @ApiOperation({ summary: "Get users list for email marketing with filtering" })
+  async getUsers(
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+    @Query("search") search?: string,
+    @Query("targetGroup") targetGroup?: string,
+    @Query("productType") productType?: string,
+    @Query("productId") productId?: string,
+  ) {
+    return this.automationService.getUsersList({
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 20,
+      search,
+      targetGroup,
+      productType,
+      productId,
+    });
+  }
+
+  @Post(":id/copy")
+  @ApiOperation({ summary: "Copy an existing automation and its steps" })
+  async copyAutomation(@Param("id") id: string, @Request() req: any) {
+    return this.automationService.copyAutomation(id, req.user.userId);
+  }
+
   @Get(":id")
   @ApiOperation({ summary: "Get automation by ID with steps" })
   async getAutomation(@Param("id") id: string) {
@@ -157,8 +183,14 @@ export class EmailAutomationController {
   async previewTemplate(@Body() body: { template: string; eventType: string }) {
     const preview = this.templateService.getTemplatePreview(
       body.template,
-      body.eventType as any
+      body.eventType as any,
     );
     return { preview };
+  }
+
+  @Get("helper/products")
+  @ApiOperation({ summary: "Get all products for automation targeting" })
+  async getProducts() {
+    return this.automationService.getProducts();
   }
 }

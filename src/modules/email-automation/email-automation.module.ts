@@ -21,9 +21,23 @@ import {
   CourseEnrollmentSchema,
 } from "../course-enrollment/entities/course-enrollment.entity";
 import {
+  UserBookAccess,
+  UserBookAccessSchema,
+} from "../book-store/entities/user-book-access.entity";
+import {
+  IndicatorSubscription,
+  IndicatorSubscriptionSchema,
+} from "../indicator-store/entities/indicator-subscription.entity";
+import {
   TrafficSource,
   TrafficSourceSchema,
 } from "../traffic-source/entities/traffic-source.entity";
+import { Course, CourseSchema } from "../course/entities/course.entity";
+import { Book, BookSchema } from "../book-store/entities/book.entity";
+import {
+  Indicator,
+  IndicatorSchema,
+} from "../indicator-store/entities/indicator.entity";
 import { EmailProviderService } from "./services/email-provider.service";
 import { EmailTemplateService } from "./services/email-template.service";
 import { EmailAutomationService } from "./services/email-automation.service";
@@ -42,7 +56,12 @@ import { EmailAutomationEventListener } from "./listeners/email-automation-event
       { name: Payment.name, schema: PaymentSchema },
       { name: UserFormSubmission.name, schema: UserFormSubmissionSchema },
       { name: CourseEnrollment.name, schema: CourseEnrollmentSchema },
+      { name: UserBookAccess.name, schema: UserBookAccessSchema },
+      { name: IndicatorSubscription.name, schema: IndicatorSubscriptionSchema },
       { name: TrafficSource.name, schema: TrafficSourceSchema },
+      { name: Course.name, schema: CourseSchema },
+      { name: Book.name, schema: BookSchema },
+      { name: Indicator.name, schema: IndicatorSchema },
     ]),
     BullModule.registerQueue({
       name: "email-automation",

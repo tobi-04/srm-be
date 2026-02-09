@@ -1,8 +1,6 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from "@nestjs/common";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
+import { Inject, Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import {
@@ -33,11 +31,27 @@ import {
 import {
   CourseEnrollment,
   CourseEnrollmentDocument,
+  EnrollmentStatus,
 } from "../../course-enrollment/entities/course-enrollment.entity";
+import {
+  UserBookAccess,
+  UserBookAccessDocument,
+} from "../../book-store/entities/user-book-access.entity";
+import {
+  IndicatorSubscription,
+  IndicatorSubscriptionDocument,
+  SubscriptionStatus,
+} from "../../indicator-store/entities/indicator-subscription.entity";
 import {
   TrafficSource,
   TrafficSourceDocument,
 } from "../../traffic-source/entities/traffic-source.entity";
+import { Course, CourseDocument } from "../../course/entities/course.entity";
+import { Book, BookDocument } from "../../book-store/entities/book.entity";
+import {
+  Indicator,
+  IndicatorDocument,
+} from "../../indicator-store/entities/indicator.entity";
 import {
   CreateAutomationDto,
   UpdateAutomationDto,
@@ -59,13 +73,24 @@ export class EmailAutomationService {
     private submissionModel: Model<UserFormSubmissionDocument>,
     @InjectModel(CourseEnrollment.name)
     private enrollmentModel: Model<CourseEnrollmentDocument>,
+    @InjectModel(UserBookAccess.name)
+    private bookAccessModel: Model<UserBookAccessDocument>,
+    @InjectModel(IndicatorSubscription.name)
+    private subscriptionModel: Model<IndicatorSubscriptionDocument>,
     @InjectModel(TrafficSource.name)
     private trafficSourceModel: Model<TrafficSourceDocument>,
     @InjectModel(EmailLog.name)
     private emailLogModel: Model<EmailLogDocument>,
+    @InjectModel(Course.name)
+    private courseModel: Model<CourseDocument>,
+    @InjectModel(Book.name)
+    private bookModel: Model<BookDocument>,
+    @InjectModel(Indicator.name)
+    private indicatorModel: Model<IndicatorDocument>,
     @InjectQueue("email-automation")
     private emailQueue: Queue,
     private templateService: EmailTemplateService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   /**
@@ -164,11 +189,135 @@ export class EmailAutomationService {
   }
 
   /**
+   * Get products and target group statistics for dropdowns
+   */
+  async getProducts() {
+    // 1. Get basic product info
+    const [courses, books, indicators] = await Promise.all([
+      this.courseModel.find({ is_deleted: false }, "title"),
+      this.bookModel.find({ is_deleted: false }, "title"),
+      this.indicatorModel.find({ is_deleted: false }, "name"),
+    ]);
+
+    // 2. Optimized counting using Aggregation
+    const [courseCounts, bookCounts, indicatorCounts] = await Promise.all([
+      this.enrollmentModel.aggregate([
+        { $match: { status: EnrollmentStatus.ACTIVE } },
+        { $group: { _id: "$course_id", uniqueUsers: { $addToSet: "$user_id" } } },
+        { $project: { count: { $size: "$uniqueUsers" } } },
+      ]).exec(),
+      this.bookAccessModel.aggregate([
+        { $group: { _id: "$book_id", uniqueUsers: { $addToSet: "$user_id" } } },
+        { $project: { count: { $size: "$uniqueUsers" } } },
+      ]).exec(),
+      this.subscriptionModel.aggregate([
+        { $match: { status: SubscriptionStatus.ACTIVE } },
+        { $group: { _id: "$indicator_id", uniqueUsers: { $addToSet: "$user_id" } } },
+        { $project: { count: { $size: "$uniqueUsers" } } },
+      ]).exec(),
+    ]).catch(err => {
+      console.error("Aggregation error:", err);
+      return [[], [], []];
+    });
+
+    // Convert to maps for O(1) lookup
+    const courseCountMap = Object.fromEntries(
+      courseCounts.map((c) => [c._id.toString(), c.count]),
+    );
+    const bookCountMap = Object.fromEntries(
+      bookCounts.map((b) => [b._id.toString(), b.count]),
+    );
+    const indicatorCountMap = Object.fromEntries(
+      indicatorCounts.map((i) => [i._id.toString(), i.count]),
+    );
+
+    // 3. Get general group counts (Optimized: using indexes)
+    // IMPORTANT: Check all active users
+    const [totalUsers, salers, enrolledUserIds, bookUserIds, indicatorUserIds] =
+      await Promise.all([
+        this.userModel.countDocuments({ role: UserRole.USER, is_active: true, is_deleted: false }),
+        this.userModel.countDocuments({ role: UserRole.SALE, is_active: true, is_deleted: false }),
+        this.enrollmentModel.distinct("user_id", {
+          status: EnrollmentStatus.ACTIVE,
+        }),
+        this.bookAccessModel.distinct("user_id"),
+        this.subscriptionModel.distinct("user_id", {
+          status: SubscriptionStatus.ACTIVE,
+        }),
+      ]);
+
+    // Group specific counts
+    const [purchasedCount, totalBookPurchased, totalIndicatorPurchased] =
+      await Promise.all([
+        this.userModel.countDocuments({
+          role: UserRole.USER,
+          is_active: true,
+          is_deleted: false,
+          _id: { $in: enrolledUserIds },
+        }),
+        this.userModel.countDocuments({
+          role: UserRole.USER,
+          is_active: true,
+          is_deleted: false,
+          _id: { $in: bookUserIds },
+        }),
+        this.userModel.countDocuments({
+          role: UserRole.USER,
+          is_active: true,
+          is_deleted: false,
+          _id: { $in: indicatorUserIds },
+        }),
+      ]);
+
+    // Final check for data consistency
+    return {
+      courses: courses.map((c: any) => {
+        const purchased = courseCountMap[c._id.toString()] || 0;
+        return {
+          id: c._id,
+          title: c.title,
+          count: purchased,
+          unpurchasedCount: Math.max(0, totalUsers - purchased),
+        };
+      }),
+      books: books.map((b: any) => {
+        const purchased = bookCountMap[b._id.toString()] || 0;
+        return {
+          id: b._id,
+          title: b.title,
+          count: purchased,
+          unpurchasedCount: Math.max(0, totalUsers - purchased),
+        };
+      }),
+      indicators: indicators.map((i: any) => {
+        const purchased = indicatorCountMap[i._id.toString()] || 0;
+        return {
+          id: i._id,
+          title: i.name || i.title || "N/A",
+          count: purchased,
+          unpurchasedCount: Math.max(0, totalUsers - purchased),
+        };
+      }),
+      groupCounts: {
+        all_students: totalUsers,
+        purchased_students: purchasedCount,
+        unpurchased_students: Math.max(0, totalUsers - purchasedCount),
+        book_purchased_users: totalBookPurchased,
+        indicator_purchased_users: totalIndicatorPurchased,
+        non_book_purchased_users: Math.max(0, totalUsers - totalBookPurchased),
+        non_indicator_purchased_users: Math.max(0, totalUsers - totalIndicatorPurchased),
+        salers: salers,
+      },
+    };
+  }
+
+  /**
    * Get user IDs belonging to a target group with optional traffic source filtering
    */
   async getTargetUserIds(
     targetGroup: TargetGroup,
     trafficSources?: string[],
+    productId?: string,
   ): Promise<string[]> {
     const userFilter: any = {
       role: UserRole.USER,
@@ -224,9 +373,116 @@ export class EmailAutomationService {
         return users.map((u) => u._id.toString());
       }
 
+      case TargetGroup.BOOK_PURCHASED_USERS: {
+        const bookUserIds = await this.bookAccessModel.distinct("user_id");
+        const users = await this.userModel.find({
+          ...userFilter,
+          _id: { $in: bookUserIds },
+        });
+        return users.map((u) => u._id.toString());
+      }
+
+      case TargetGroup.INDICATOR_PURCHASED_USERS: {
+        const indicatorUserIds = await this.subscriptionModel.distinct(
+          "user_id",
+          { status: SubscriptionStatus.ACTIVE },
+        );
+        const users = await this.userModel.find({
+          ...userFilter,
+          _id: { $in: indicatorUserIds },
+        });
+        return users.map((u) => u._id.toString());
+      }
+
+      case TargetGroup.NON_BOOK_PURCHASED_USERS: {
+        const bookUserIds = await this.bookAccessModel.distinct("user_id");
+        const users = await this.userModel.find({
+          ...userFilter,
+          _id: { $nin: bookUserIds },
+        });
+        return users.map((u) => u._id.toString());
+      }
+
+      case TargetGroup.NON_INDICATOR_PURCHASED_USERS: {
+        const indicatorUserIds = await this.subscriptionModel.distinct(
+          "user_id",
+          { status: SubscriptionStatus.ACTIVE },
+        );
+        const users = await this.userModel.find({
+          ...userFilter,
+          _id: { $nin: indicatorUserIds },
+        });
+        return users.map((u) => u._id.toString());
+      }
+
+      case TargetGroup.SPECIFIC_COURSE_PURCHASED:
+      case TargetGroup.SPECIFIC_COURSE_NOT_PURCHASED:
+      case TargetGroup.SPECIFIC_BOOK_PURCHASED:
+      case TargetGroup.SPECIFIC_BOOK_NOT_PURCHASED:
+      case TargetGroup.SPECIFIC_INDICATOR_PURCHASED:
+      case TargetGroup.SPECIFIC_INDICATOR_NOT_PURCHASED:
+        // Handle mapped from frontend simplified values
+        return this.handleSpecificProductGroup(
+          targetGroup,
+          userFilter,
+          productId,
+        );
+
       default:
         return [];
     }
+  }
+
+  private async handleSpecificProductGroup(
+    targetGroup: string,
+    userFilter: any,
+    productId?: string,
+  ): Promise<string[]> {
+    if (!productId) return [];
+
+    const pid = new Types.ObjectId(productId);
+
+    if (targetGroup.includes("course")) {
+      const enrolledUserIds = await this.enrollmentModel.distinct("user_id", {
+        course_id: pid,
+        is_deleted: false,
+      });
+      const users = await this.userModel.find({
+        ...userFilter,
+        _id: { [targetGroup.includes("not") ? "$nin" : "$in"]: enrolledUserIds },
+      });
+      return users.map((u) => u._id.toString());
+    }
+
+    if (targetGroup.includes("book")) {
+      const bookUserIds = await this.bookAccessModel.distinct("user_id", {
+        book_id: pid,
+      });
+      const users = await this.userModel.find({
+        ...userFilter,
+        _id: { [targetGroup.includes("not") ? "$nin" : "$in"]: bookUserIds },
+      });
+      return users.map((u) => u._id.toString());
+    }
+
+    if (targetGroup.includes("indicator")) {
+      const indicatorUserIds = await this.subscriptionModel.distinct(
+        "user_id",
+        {
+          indicator_id: pid,
+          status: SubscriptionStatus.ACTIVE,
+        },
+      );
+      const users = await this.userModel.find({
+        ...userFilter,
+        _id: {
+          [targetGroup.includes("not") ? "$nin" : "$in"]: indicatorUserIds,
+        },
+      });
+      return users.map((u) => u._id.toString());
+    }
+
+    return [];
   }
 
   /**
@@ -452,5 +708,109 @@ export class EmailAutomationService {
       limit: limitNum,
       skip: skipNum,
     };
+  }
+
+  /**
+   * Copy existing automation and its steps
+   */
+  async copyAutomation(id: string, createdBy: string): Promise<EmailAutomationDocument> {
+    const original = await this.getAutomationById(id);
+    const steps = await this.getSteps(id);
+
+    // 1. Create new automation metadata
+    const newAutomation = new this.automationModel({
+      ...original.toObject(),
+      _id: new Types.ObjectId(),
+      name: `${original.name} (copy)`,
+      is_active: false,
+      created_by: new Types.ObjectId(createdBy),
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+
+    const savedAutomation = await newAutomation.save();
+
+    // 2. Copy all steps
+    const stepPromises = steps.map((step) => {
+      const stepData = step.toObject();
+      delete stepData._id; // Let Mongo generate new ID
+      return this.stepModel.create({
+        ...stepData,
+        automation_id: savedAutomation._id,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+    });
+
+    await Promise.all(stepPromises);
+
+    return savedAutomation;
+  }
+
+  /**
+   * Get users list with advanced filtering and caching
+   */
+  async getUsersList(filters: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    targetGroup?: string;
+    productType?: string;
+    productId?: string;
+  }) {
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const skip = (page - 1) * limit;
+
+    // Create a cache key based on filters
+    const cacheKey = `users_list_${JSON.stringify(filters)}`;
+    const cachedData = await this.cacheManager.get(cacheKey);
+    if (cachedData) return cachedData;
+
+    // Build user filter
+    let userFilter: any = {
+      role: { $ne: UserRole.ADMIN },
+      is_deleted: false,
+    };
+
+    if (filters.search) {
+      userFilter.$or = [
+        { name: { $regex: filters.search, $options: "i" } },
+        { email: { $regex: filters.search, $options: "i" } },
+      ];
+    }
+
+    // Handle target groups or specific product filtering
+    if (filters.targetGroup || filters.productId) {
+      const userIds = await this.getTargetUserIds(
+        (filters.targetGroup as TargetGroup) || TargetGroup.ALL_STUDENTS,
+        [],
+        filters.productId,
+      );
+      userFilter._id = { $in: userIds.map((id) => new Types.ObjectId(id)) };
+    }
+
+    const [users, total] = await Promise.all([
+      this.userModel
+        .find(userFilter)
+        .select("-password")
+        .sort({ created_at: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      this.userModel.countDocuments(userFilter),
+    ]);
+
+    const result = {
+      users,
+      total,
+      page,
+      limit,
+    };
+
+    // Cache for 5 minutes
+    await this.cacheManager.set(cacheKey, result, 300000);
+
+    return result;
   }
 }
