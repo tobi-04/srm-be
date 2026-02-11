@@ -9,6 +9,7 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { User, UserSchema } from '../user/entities/user.entity';
 import { UserDeviceLogin, UserDeviceLoginSchema } from './entities/user-device-login.entity';
 import { UserModule } from '../user/user.module';
+import { EmailAutomationModule } from '../email-automation/email-automation.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { UserModule } from '../user/user.module';
       { name: UserDeviceLogin.name, schema: UserDeviceLoginSchema },
     ]),
     UserModule,
+    EmailAutomationModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtAccessStrategy, JwtRefreshStrategy],

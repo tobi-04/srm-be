@@ -184,13 +184,45 @@ export class AnalyticsService {
       is_deleted: false,
     });
 
-    // 5. Total Emails in system (Unique emails from submissions + users)
-    const [uniqueEmailsInSubmissions, uniqueEmailsInUsers] = await Promise.all([
+    // 5. Total Emails in system (Unique emails from submissions + users + all transactions)
+    const [
+      uniqueEmailsInSubmissions,
+      uniqueEmailsInUsers,
+      uniqueEmailsInCourseTransactions,
+      uniqueEmailsInBookOrders,
+      uniqueEmailsInIndicatorSubs,
+    ] = await Promise.all([
+      // Emails from form submissions
       this.userFormSubmissionModel.distinct("email", { is_deleted: false }),
+      // Emails from registered users
       this.userModel.distinct("email", { role: UserRole.USER, is_deleted: false }),
+      // Emails from course transactions (via user_form_submission_id)
+      this.paymentTransactionModel
+        .find({ is_deleted: false, user_form_submission_id: { $ne: null } })
+        .populate("user_form_submission_id")
+        .lean()
+        .then((txs: any[]) => txs.map((tx) => tx.user_form_submission_id?.email).filter(Boolean)),
+      // Emails from book orders (via user_id)
+      this.bookOrderModel
+        .find({ is_deleted: false, user_id: { $ne: null } })
+        .populate("user_id")
+        .lean()
+        .then((orders: any[]) => orders.map((order) => order.user_id?.email).filter(Boolean)),
+      // Emails from indicator subscriptions (via user_id)
+      this.indicatorSubscriptionModel
+        .find({ is_deleted: false, user_id: { $ne: null } })
+        .populate("user_id")
+        .lean()
+        .then((subs: any[]) => subs.map((sub) => sub.user_id?.email).filter(Boolean)),
     ]);
 
-    const allUniqueEmails = new Set([...uniqueEmailsInSubmissions, ...uniqueEmailsInUsers]);
+    const allUniqueEmails = new Set([
+      ...uniqueEmailsInSubmissions,
+      ...uniqueEmailsInUsers,
+      ...uniqueEmailsInCourseTransactions,
+      ...uniqueEmailsInBookOrders,
+      ...uniqueEmailsInIndicatorSubs,
+    ]);
     const totalAllEmails = allUniqueEmails.size;
 
     return {

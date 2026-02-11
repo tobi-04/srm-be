@@ -4,10 +4,6 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { Order, OrderSchema } from '../order/entities/order.entity';
 import {
-  PaymentTransaction,
-  PaymentTransactionSchema,
-} from '../payment-transaction/entities/payment-transaction.entity';
-import {
   BookOrder,
   BookOrderSchema,
 } from '../book-store/entities/book-order.entity';
@@ -35,7 +31,6 @@ import {
   imports: [
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
-      { name: PaymentTransaction.name, schema: PaymentTransactionSchema },
       { name: BookOrder.name, schema: BookOrderSchema },
       { name: BookOrderItem.name, schema: BookOrderItemSchema },
       { name: IndicatorPayment.name, schema: IndicatorPaymentSchema },

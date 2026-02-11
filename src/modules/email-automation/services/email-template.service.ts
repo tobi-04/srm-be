@@ -1,5 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import * as Handlebars from "handlebars";
+import * as fs from "fs";
+import * as path from "path";
 import { EventType } from "../entities/email-automation.entity";
 
 export interface TemplateVariables {
@@ -23,6 +25,11 @@ export interface TemplateVariables {
 @Injectable()
 export class EmailTemplateService {
   private readonly logger = new Logger(EmailTemplateService.name);
+  private readonly templatesPath = path.join(
+    __dirname,
+    "..",
+    "templates"
+  );
 
   /**
    * Render Handlebars template with variables
@@ -33,6 +40,40 @@ export class EmailTemplateService {
       return compiledTemplate(variables);
     } catch (error) {
       this.logger.error("Failed to render template:", error);
+      throw new Error(`Template rendering failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Load and render template from file
+   */
+  async renderTemplateFromFile(
+    templateName: string,
+    variables: TemplateVariables
+  ): Promise<string> {
+    try {
+      const templatePath = path.join(this.templatesPath, `${templateName}.hbs`);
+      
+      // Check if file exists
+      if (!fs.existsSync(templatePath)) {
+        throw new Error(`Template file not found: ${templatePath}`);
+      }
+
+      // Read template file
+      const templateContent = fs.readFileSync(templatePath, "utf-8");
+      
+      // Compile and render
+      const compiledTemplate = Handlebars.compile(templateContent);
+      const rendered = compiledTemplate(variables);
+      
+      this.logger.log(`Template "${templateName}" rendered successfully`);
+      
+      return rendered;
+    } catch (error) {
+      this.logger.error(
+        `Failed to render template from file "${templateName}":`,
+        error
+      );
       throw new Error(`Template rendering failed: ${error.message}`);
     }
   }

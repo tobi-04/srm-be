@@ -32,6 +32,23 @@ import {
   UserFormSubmissionDocument,
 } from "../landing-page/entities/user-form-submission.entity";
 
+import {
+  BookOrder,
+  BookOrderDocument,
+} from "../book-store/entities/book-order.entity";
+import {
+  BookOrderItem,
+  BookOrderItemDocument,
+} from "../book-store/entities/book-order-item.entity";
+import {
+  IndicatorSubscription,
+  IndicatorSubscriptionDocument,
+} from "../indicator-store/entities/indicator-subscription.entity";
+import {
+  Indicator,
+  IndicatorDocument,
+} from "../indicator-store/entities/indicator.entity";
+
 @Injectable()
 export class StudentService {
   constructor(
@@ -47,6 +64,14 @@ export class StudentService {
     private lessonProgressModel: Model<LessonProgressDocument>,
     @InjectModel(UserFormSubmission.name)
     private userFormSubmissionModel: Model<UserFormSubmissionDocument>,
+    @InjectModel(BookOrder.name)
+    private bookOrderModel: Model<BookOrderDocument>,
+    @InjectModel(BookOrderItem.name)
+    private bookOrderItemModel: Model<BookOrderItemDocument>,
+    @InjectModel(IndicatorSubscription.name)
+    private indicatorSubscriptionModel: Model<IndicatorSubscriptionDocument>,
+    @InjectModel(Indicator.name)
+    private indicatorModel: Model<IndicatorDocument>,
     private courseEnrollmentService: CourseEnrollmentService,
   ) {}
 
@@ -381,13 +406,14 @@ export class StudentService {
   }
 
   /**
-   * Get student's order history
+   * Get student's order history (Courses, Books, Indicators)
    * Cache: 5 minutes
    */
   async getOrders(studentId: string, query: StudentOrdersQuery): Promise<any> {
     const { page = 1, limit = 20, status } = query;
 
-    // First, get the user's email
+    // 1. Get Course Orders
+    // ---------------------------------------------------------
     const user = await this.userModel
       .findById(studentId)
       .select("email")
@@ -397,52 +423,136 @@ export class StudentService {
       throw new NotFoundException("User not found");
     }
 
-    // Find all user form submissions with this email
     const userFormSubmissions = await this.userFormSubmissionModel
       .find({ email: user.email, is_deleted: false })
       .select("_id")
       .lean();
 
-    const submissionIds = userFormSubmissions.map(
-      (submission) => submission._id,
-    );
+    const submissionIds = userFormSubmissions.map((s) => s._id);
 
-    if (submissionIds.length === 0) {
-      return {
-        data: [],
-        meta: {
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-        },
-      };
-    }
-
-    // Build filter for payment transactions
-    const filter: any = {
+    const courseFilter: any = {
       user_form_submission_id: { $in: submissionIds },
       is_deleted: false,
     };
+    if (status) courseFilter.status = status;
 
-    if (status) {
-      filter.status = status;
-    }
-
-    const total = await this.paymentTransactionModel.countDocuments(filter);
-    const totalPages = Math.ceil(total / limit);
-
-    const orders = await this.paymentTransactionModel
-      .find(filter)
+    const courseOrdersPromise = this.paymentTransactionModel
+      .find(courseFilter)
       .populate("course_id", "title")
       .select("course_id amount status paid_at created_at")
-      .sort({ created_at: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
       .lean();
 
+    // 2. Get Book Orders
+    // ---------------------------------------------------------
+    const bookFilter: any = {
+      user_id: studentId,
+    };
+    if (status) bookFilter.status = status;
+
+    const bookOrdersPromise = this.bookOrderModel
+      .find(bookFilter)
+      .select("_id total_amount status paid_at created_at")
+      .lean();
+
+    // 3. Get Indicator Orders
+    // ---------------------------------------------------------
+    const indicatorFilter: any = {
+      user_id: studentId,
+    };
+    // Note: Indicator status might be different enum, need mapping if strictly filtering
+    // Assuming PENDING/PAID/FAILED are common or mapped
+    if (status) indicatorFilter.status = status;
+
+    const indicatorOrdersPromise = this.indicatorSubscriptionModel
+      .find(indicatorFilter)
+      .populate("indicator_id", "name price_monthly")
+      .select("indicator_id status start_at created_at")
+      .lean();
+
+    // Execute queries in parallel
+    const [courseOrders, bookOrders, indicatorOrders] = await Promise.all([
+      courseOrdersPromise,
+      bookOrdersPromise,
+      indicatorOrdersPromise,
+    ]);
+
+    // 4. Normalize Data
+    // ---------------------------------------------------------
+    const normalizedOrders = [];
+
+    // Map Course Orders
+    for (const order of courseOrders) {
+      normalizedOrders.push({
+        _id: order._id.toString(),
+        type: "COURSE",
+        name: (order.course_id as any)?.title
+          ? `[Khóa học] ${(order.course_id as any)?.title}`
+          : "Khóa học",
+        amount: order.amount,
+        status: order.status,
+        date: order.paid_at || order.created_at,
+        created_at: order.created_at,
+      });
+    }
+
+    // Map Book Orders
+    // Need to fetch book titles for each order
+    const bookOrderIds = bookOrders.map((o) => o._id);
+    const bookOrderItems = await this.bookOrderItemModel
+      .find({ order_id: { $in: bookOrderIds } })
+      .select("order_id book_title")
+      .lean();
+
+    for (const order of bookOrders) {
+      const items = bookOrderItems.filter(
+        (i) => i.order_id.toString() === order._id.toString(),
+      );
+      const name =
+        items.length > 0
+          ? items.map((i) => i.book_title).join(", ")
+          : "Sách điện tử";
+
+      normalizedOrders.push({
+        _id: order._id.toString(),
+        type: "BOOK",
+        name: `[Sách] ${name}`,
+        amount: order.total_amount,
+        status: order.status,
+        date: order.paid_at || order.created_at,
+        created_at: order.created_at,
+      });
+    }
+
+    // Map Indicator Orders
+    for (const order of indicatorOrders) {
+      const indicator = order.indicator_id as any;
+      normalizedOrders.push({
+        _id: order._id.toString(),
+        type: "INDICATOR",
+        name: `[Indicator] ${indicator?.name || "Indicator"}`,
+        amount: indicator?.price_monthly || 0,
+        status: order.status,
+        date: order.start_at || order.created_at,
+        created_at: order.created_at,
+      });
+    }
+
+    // 5. Sort & Paginate
+    // ---------------------------------------------------------
+    normalizedOrders.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+
+    const total = normalizedOrders.length;
+    const totalPages = Math.ceil(total / limit);
+    const startIndex = (page - 1) * limit;
+    const paginatedOrders = normalizedOrders.slice(
+      startIndex,
+      startIndex + limit,
+    );
+
     return {
-      data: orders,
+      data: paginatedOrders,
       meta: {
         total,
         page,

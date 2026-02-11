@@ -96,12 +96,25 @@ export class R2Service {
 
   /**
    * Generate presigned URL for temporary access (for private files)
+   * @param filename Optional filename for Content-Disposition header
    */
-  async getPresignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
-    const command = new GetObjectCommand({
+  async getPresignedUrl(
+    key: string,
+    expiresIn: number = 3600,
+    filename?: string,
+  ): Promise<string> {
+    const commandConfig: any = {
       Bucket: this.bucketName,
       Key: key,
-    });
+    };
+
+    if (filename) {
+      // Encode filename for header
+      const encodedFilename = encodeURIComponent(filename);
+      commandConfig.ResponseContentDisposition = `attachment; filename="${filename}"; filename*=UTF-8''${encodedFilename}`;
+    }
+
+    const command = new GetObjectCommand(commandConfig);
 
     return getSignedUrl(this.s3Client, command, { expiresIn });
   }

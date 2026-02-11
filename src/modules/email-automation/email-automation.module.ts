@@ -76,6 +76,10 @@ import { EmailAutomationEventListener } from "./listeners/email-automation-event
     EmailAutomationProcessor,
     EmailAutomationEventListener,
   ],
-  exports: [EmailAutomationService, EmailTemplateService],
+  exports: [
+    EmailAutomationService,
+    EmailTemplateService,
+    EmailProviderService,
+  ],
 })
 export class EmailAutomationModule {}

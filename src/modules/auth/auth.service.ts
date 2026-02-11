@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
+  Logger,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { InjectModel } from "@nestjs/mongoose";
@@ -24,9 +25,14 @@ import {
 } from "./dto/auth.dto";
 import { JwtPayload } from "./strategies/jwt-access.strategy";
 import { RefreshPayload } from "./strategies/jwt-refresh.strategy";
+import { EmailProviderService } from "../email-automation/services/email-provider.service";
+import { EmailTemplateService } from "../email-automation/services/email-template.service";
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private userRepository: UserRepository,
     private jwtService: JwtService,
@@ -34,7 +40,10 @@ export class AuthService {
     private userModel: Model<UserDocument>,
     @InjectModel(UserDeviceLogin.name)
     private userDeviceLoginModel: Model<UserDeviceLoginDocument>,
-    private eventEmitter: EventEmitter2
+    private eventEmitter: EventEmitter2,
+    private emailProviderService: EmailProviderService,
+    private emailTemplateService: EmailTemplateService,
+    private configService: ConfigService
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -257,15 +266,49 @@ export class AuthService {
       }
     );
 
-    // TODO: Send email with reset token
-    // For now, return the token (in production, this should be sent via email)
-    console.log("Reset token:", resetToken);
+    // Build reset link
+    const frontendUrl =
+      this.configService.get<string>("FRONTEND_URL") ||
+      "http://localhost:3000";
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-    return {
+    // Send email with reset link
+    try {
+      const emailHtml = await this.emailTemplateService.renderTemplateFromFile(
+        "reset-password",
+        {
+          userName: user.name || user.email,
+          resetLink,
+        }
+      );
+
+      await this.emailProviderService.sendEmail({
+        to: user.email,
+        subject: "Đặt lại mật khẩu - SRM Lesson",
+        html: emailHtml,
+      });
+
+      this.logger.log(
+        `Password reset email sent successfully to ${user.email}`
+      );
+    } catch (error) {
+      this.logger.error("Failed to send password reset email:", error);
+      // Don't throw error to avoid revealing email existence
+      // But log it for debugging
+    }
+
+    const response: any = {
       message: "If the email exists, a reset link has been sent",
-      // Remove this in production
-      resetToken: resetToken,
     };
+
+    // Only include reset token in development mode
+    const isDevelopment = this.configService.get<string>("NODE_ENV") !== "production";
+    if (isDevelopment) {
+      response.resetToken = resetToken;
+      console.log("Reset token (dev only):", resetToken);
+    }
+
+    return response;
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto) {

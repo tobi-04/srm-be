@@ -466,7 +466,18 @@ export class BookStoreService {
       throw new NotFoundException("File not found");
     }
 
+    // Extract filename from path for content-disposition
+    const pathParts = file.file_path.split('/');
+    const rawFilename = pathParts[pathParts.length - 1];
+    // Remove timestamp prefix (assuming format: timestamp-filename)
+    const filename = rawFilename.replace(/^\d+-/, '');
+
     // Get presigned URL from R2 (valid for 1 hour)
-    return this.r2Service.getPresignedUrl(file.file_path, 3600);
+    const url = await this.r2Service.getPresignedUrl(
+      file.file_path,
+      3600,
+      filename,
+    );
+    return { url };
   }
 }

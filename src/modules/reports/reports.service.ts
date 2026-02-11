@@ -5,10 +5,6 @@ import ExcelJS from 'exceljs';
 import dayjs from 'dayjs';
 import { Order, OrderStatus } from '../order/entities/order.entity';
 import {
-  PaymentTransaction,
-  PaymentTransactionStatus,
-} from '../payment-transaction/entities/payment-transaction.entity';
-import {
   BookOrder,
   BookOrderStatus,
 } from '../book-store/entities/book-order.entity';
@@ -19,7 +15,6 @@ import {
 } from '../indicator-store/entities/indicator-payment.entity';
 import {
   IndicatorSubscription,
-  SubscriptionStatus,
 } from '../indicator-store/entities/indicator-subscription.entity';
 import { User } from '../user/entities/user.entity';
 import { Course } from '../course/entities/course.entity';
@@ -50,8 +45,6 @@ export class ReportsService {
 
   constructor(
     @InjectModel(Order.name) private orderModel: Model<Order>,
-    @InjectModel(PaymentTransaction.name)
-    private paymentTransactionModel: Model<PaymentTransaction>,
     @InjectModel(BookOrder.name) private bookOrderModel: Model<BookOrder>,
     @InjectModel(BookOrderItem.name)
     private bookOrderItemModel: Model<BookOrderItem>,
@@ -78,27 +71,22 @@ export class ReportsService {
 
     switch (query.range) {
       case TimeRange.WEEK:
-        // 7 ngày gần nhất: từ 7 ngày trước 00:00:00 đến hôm nay 23:59:59
         startDate = now.subtract(7, 'day').startOf('day');
         endDate = now.endOf('day');
         break;
       case TimeRange.MONTH:
-        // 30 ngày gần nhất: từ 30 ngày trước 00:00:00 đến hôm nay 23:59:59
         startDate = now.subtract(30, 'day').startOf('day');
         endDate = now.endOf('day');
         break;
       case TimeRange.QUARTER:
-        // 90 ngày gần nhất (3 tháng): từ 90 ngày trước 00:00:00 đến hôm nay 23:59:59
         startDate = now.subtract(90, 'day').startOf('day');
         endDate = now.endOf('day');
         break;
       case TimeRange.YEAR:
-        // 365 ngày gần nhất: từ 365 ngày trước 00:00:00 đến hôm nay 23:59:59
         startDate = now.subtract(365, 'day').startOf('day');
         endDate = now.endOf('day');
         break;
       case TimeRange.CUSTOM:
-        // Custom range: từ ngày from 00:00:00 đến ngày to 23:59:59
         if (query.from) {
           startDate = dayjs(query.from).startOf('day');
         } else {
@@ -112,7 +100,6 @@ export class ReportsService {
         break;
       case TimeRange.ALL:
       default:
-        // Tất cả: từ 2020-01-01 00:00:00 đến hôm nay 23:59:59
         startDate = dayjs('2020-01-01').startOf('day');
         endDate = now.endOf('day');
         break;
@@ -126,7 +113,6 @@ export class ReportsService {
 
   /**
    * Lấy tất cả orders đã thanh toán
-   * Logic giống hệt analytics.service.ts getTransactionsPaginated()
    */
   async getAllPaidOrders(query: GetReportsQueryDto): Promise<ReportRow[]> {
     const { startDate, endDate } = this.calculateDateRange(query);
@@ -140,12 +126,12 @@ export class ReportsService {
       $lte: endDate,
     };
 
-    // Build Course Pipeline (from payment_transactions)
+    // Build Course Pipeline (from orders)
     const buildCoursePipeline = () => {
       const pipeline: any[] = [
         {
           $match: {
-            status: PaymentTransactionStatus.COMPLETED,
+            status: OrderStatus.PAID,
             is_deleted: false,
             $or: [
               { paid_at: dateFilter },
@@ -161,7 +147,7 @@ export class ReportsService {
         {
           $lookup: {
             from: 'user_form_submissions',
-            localField: 'user_form_submission_id',
+            localField: 'user_submission_id',
             foreignField: '_id',
             as: 'submission',
           },
@@ -232,7 +218,9 @@ export class ReportsService {
           $project: {
             _id: 1,
             type: { $literal: 'BOOK' },
-            amount: '$items.price',
+            amount: 1, // Will be taken from items or order total
+            total_amount: 1,
+            item_price: '$items.price',
             paid_at: 1,
             updated_at: 1,
             customer_name: '$user.name',
@@ -244,18 +232,18 @@ export class ReportsService {
       return pipeline;
     };
 
-    // Build Indicator Pipeline (from indicator_subscriptions)
+    // Build Indicator Pipeline (from indicator_payments)
     const buildIndicatorPipeline = () => {
       const pipeline: any[] = [
         {
           $match: {
-            status: SubscriptionStatus.ACTIVE,
+            status: PaymentStatus.PAID,
             is_deleted: false,
             $or: [
-              { start_at: dateFilter },
+              { paid_at: dateFilter },
               {
                 $and: [
-                  { start_at: { $exists: false } },
+                  { paid_at: { $exists: false } },
                   { updated_at: dateFilter },
                 ],
               },
@@ -264,8 +252,17 @@ export class ReportsService {
         },
         {
           $lookup: {
+            from: 'indicator_subscriptions',
+            localField: 'subscription_id',
+            foreignField: '_id',
+            as: 'subscription',
+          },
+        },
+        { $unwind: { path: '$subscription', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
             from: 'users',
-            localField: 'user_id',
+            localField: 'subscription.user_id',
             foreignField: '_id',
             as: 'user',
           },
@@ -274,7 +271,7 @@ export class ReportsService {
         {
           $lookup: {
             from: 'indicators',
-            localField: 'indicator_id',
+            localField: 'subscription.indicator_id',
             foreignField: '_id',
             as: 'indicator',
           },
@@ -284,8 +281,8 @@ export class ReportsService {
           $project: {
             _id: 1,
             type: { $literal: 'INDICATOR' },
-            amount: '$indicator.price_monthly',
-            paid_at: '$start_at',
+            amount: 1,
+            paid_at: 1,
             updated_at: 1,
             customer_name: '$user.name',
             customer_email: '$user.email',
@@ -296,11 +293,11 @@ export class ReportsService {
       return pipeline;
     };
 
-    // Run all queries in parallel (same as analytics service)
+    // Run all queries in parallel
     const queries: Promise<any[]>[] = [
-      this.paymentTransactionModel.aggregate(buildCoursePipeline()).exec(),
+      this.orderModel.aggregate(buildCoursePipeline()).exec(),
       this.bookOrderModel.aggregate(buildBookPipeline()).exec(),
-      this.indicatorSubscriptionModel.aggregate(buildIndicatorPipeline()).exec(),
+      this.indicatorPaymentModel.aggregate(buildIndicatorPipeline()).exec(),
     ];
 
     const results = await Promise.all(queries);
@@ -319,6 +316,7 @@ export class ReportsService {
     const reportRows: ReportRow[] = allData.map((item, index) => {
       let productName = '';
       let unit = '';
+      let amount = item.amount || 0;
 
       if (item.type === 'COURSE') {
         productName = item.product_name
@@ -330,6 +328,12 @@ export class ReportsService {
           ? `Mua sách điện tử: ${item.product_name}`
           : 'Mua sách điện tử';
         unit = '1 Quyển';
+        // Use item price if available (since BookOrder might have total amount for multiple items if supported, but currently 1 item per order logic usually)
+        if (item.item_price) {
+           amount = item.item_price;
+        } else if (item.total_amount) {
+           amount = item.total_amount;
+        }
       } else if (item.type === 'INDICATOR') {
         productName = item.product_name
           ? `Thuê indicator: ${item.product_name}`
@@ -350,7 +354,7 @@ export class ReportsService {
         productName,
         unit,
         quantity: 1,
-        amount: item.amount || 0,
+        amount: amount,
         productType: item.type,
       };
     });
