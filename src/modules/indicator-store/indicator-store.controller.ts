@@ -38,7 +38,7 @@ export class IndicatorStoreController {
   @ApiOperation({ summary: "Get user's subscriptions" })
   async getMySubscriptions(@Request() req: any) {
     return this.subscriptionService.getMySubscriptions(
-      req.user.sub || req.user._id,
+      req.user.userId,
     );
   }
 
@@ -46,7 +46,7 @@ export class IndicatorStoreController {
   @UseGuards(OptionalJwtGuard)
   @ApiOperation({ summary: "Get indicator by slug" })
   async findBySlug(@Param("slug") slug: string, @Request() req: any) {
-    const userId = req.user?.sub || req.user?._id;
+    const userId = req.user?.userId;
     return this.indicatorService.findBySlugWithContact(slug, userId);
   }
 

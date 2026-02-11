@@ -116,7 +116,18 @@ export class SubscriptionService {
     let user = await this.userService.findByEmail(email.toLowerCase().trim());
     let isNewUser = false;
 
-    if (!user) {
+    if (user) {
+      // Check if user already has an active subscription for this indicator
+      const hasActiveSub = await this.indicatorService.checkSubscription(
+        user._id.toString(),
+        indicator_id,
+      );
+      if (hasActiveSub) {
+        throw new BadRequestException(
+          "Bạn đã thuê indicator này và vẫn còn hạn sử dụng.",
+        );
+      }
+    } else {
       const password = `IND${Math.floor(100000 + Math.random() * 900000)}`;
       user = await this.userService.create({
         email: email.toLowerCase().trim(),
@@ -215,6 +226,36 @@ export class SubscriptionService {
   async getSubscriptionStatus(subscriptionId: string) {
     const subscription = await this.subscriptionModel.findById(subscriptionId);
     if (!subscription) throw new NotFoundException("Subscription not found");
+
+    // Check if user already has an active subscription (for PENDING subscriptions)
+    if (subscription.status === SubscriptionStatus.PENDING) {
+      const hasActiveSub = await this.indicatorService.checkSubscription(
+        subscription.user_id.toString(),
+        subscription.indicator_id.toString(),
+      );
+      if (hasActiveSub) {
+        throw new BadRequestException(
+          "Bạn đang thuê indicator này và vẫn còn hạn sử dụng",
+        );
+      }
+    }
+
+    if (subscription.status === SubscriptionStatus.ACTIVE) {
+      const indicator = await this.indicatorService.findOne(
+        subscription.indicator_id.toString(),
+        true,
+      );
+      return {
+        status: subscription.status,
+        start_at: subscription.start_at,
+        end_at: subscription.end_at,
+        zalo_group_url: indicator?.zalo_group_url,
+        contact_email: indicator?.contact_email,
+        contact_telegram: indicator?.contact_telegram,
+        owner_name: indicator?.owner_name,
+        description_detail: indicator?.description_detail,
+      };
+    }
 
     return {
       status: subscription.status,

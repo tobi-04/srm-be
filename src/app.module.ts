@@ -35,6 +35,7 @@ import { UploadModule } from "./modules/upload/upload.module";
 import { CouponModule } from "./modules/coupon/coupon.module";
 import { TelegramModule } from "./modules/telegram/telegram.module";
 import { ReportsModule } from "./modules/reports/reports.module";
+import { DebugModule } from "./modules/debug/debug.module";
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { ReportsModule } from "./modules/reports/reports.module";
     CouponModule,
     TelegramModule,
     ReportsModule,
+    DebugModule,
   ],
   controllers: [AppController],
   providers: [AppService],

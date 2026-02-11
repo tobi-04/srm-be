@@ -37,6 +37,10 @@ import {
   EmailLog,
   EmailLogSchema,
 } from "../email-automation/entities/email-log.entity";
+import {
+  UserFormSubmission,
+  UserFormSubmissionSchema,
+} from "../landing-page/entities/user-form-submission.entity";
 
 @Module({
   imports: [
@@ -52,6 +56,7 @@ import {
       { name: IndicatorSubscription.name, schema: IndicatorSubscriptionSchema },
       { name: IndicatorPayment.name, schema: IndicatorPaymentSchema },
       { name: EmailLog.name, schema: EmailLogSchema },
+      { name: UserFormSubmission.name, schema: UserFormSubmissionSchema },
     ]),
   ],
   controllers: [AnalyticsController],

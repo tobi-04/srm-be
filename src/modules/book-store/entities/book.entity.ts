@@ -29,6 +29,9 @@ export class Book extends BaseEntity {
 
   @Prop({ type: String, enum: BookStatus, default: BookStatus.DRAFT })
   status: BookStatus;
+
+  @Prop({ default: "" })
+  zalo_group_url: string;
 }
 
 export type BookDocument = HydratedDocument<Book>;

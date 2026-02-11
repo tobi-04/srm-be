@@ -80,6 +80,14 @@ export class CreateCourseDto {
   @IsArray()
   @IsString({ each: true })
   syllabus?: string[];
+
+  @ApiPropertyOptional({
+    description: "Zalo group link for students",
+    example: "https://zalo.me/g/xxxxxx",
+  })
+  @IsOptional()
+  @IsString()
+  zalo_group_url?: string;
 }
 
 export class UpdateCourseDto {
@@ -137,6 +145,14 @@ export class UpdateCourseDto {
   @IsArray()
   @IsString({ each: true })
   syllabus?: string[];
+
+  @ApiPropertyOptional({
+    description: "Zalo group link for students",
+    example: "https://zalo.me/g/xxxxxx",
+  })
+  @IsOptional()
+  @IsString()
+  zalo_group_url?: string;
 }
 
 export class SearchCourseDto {

@@ -35,6 +35,9 @@ export class Course extends BaseEntity {
 
   @Prop({ type: Array, default: [] })
   syllabus: string[];
+
+  @Prop({ default: "" })
+  zalo_group_url: string;
 }
 
 export type CourseDocument = HydratedDocument<Course>;

@@ -101,7 +101,16 @@ export class BookOrderService {
     let user = await this.userService.findByEmail(email.toLowerCase().trim());
     let isNewUser = false;
 
-    if (!user) {
+    if (user) {
+      // Check if user already owns this book
+      const hasAccess = await this.bookStoreService.checkAccess(
+        user._id.toString(),
+        book_id,
+      );
+      if (hasAccess) {
+        throw new BadRequestException("Bạn đã sở hữu cuốn sách này rồi.");
+      }
+    } else {
       const password = `BK${Math.floor(100000 + Math.random() * 900000)}`;
       user = await this.userService.create({
         email: email.toLowerCase().trim(),
@@ -223,6 +232,34 @@ export class BookOrderService {
   async getOrderStatus(orderId: string) {
     const order = await this.bookOrderModel.findById(orderId);
     if (!order) throw new NotFoundException("Order not found");
+
+    // Check if user already owns the book (for PENDING orders)
+    if (order.status === BookOrderStatus.PENDING) {
+      const items = await this.bookOrderItemModel.find({ order_id: order._id });
+      if (items.length > 0) {
+        const hasAccess = await this.bookStoreService.checkAccess(
+          order.user_id.toString(),
+          items[0].book_id.toString(),
+        );
+        if (hasAccess) {
+          throw new BadRequestException("Bạn đã mua sách này rồi");
+        }
+      }
+    }
+
+    if (order.status === BookOrderStatus.PAID) {
+      const items = await this.bookOrderItemModel.find({ order_id: order._id });
+      const bookIds = items.map((item) => item.book_id.toString());
+      const books = await Promise.all(
+        bookIds.map((id) => this.bookStoreService.findOne(id, true)),
+      );
+
+      return {
+        status: order.status,
+        paid_at: order.paid_at,
+        zalo_group_url: books[0]?.zalo_group_url, // Lấy link zalo của sách đầu tiên
+      };
+    }
 
     return {
       status: order.status,

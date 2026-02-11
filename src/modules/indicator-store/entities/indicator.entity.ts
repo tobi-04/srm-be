@@ -55,6 +55,9 @@ export class Indicator extends BaseEntity {
 
   @Prop({ default: "" })
   description_detail: string;
+
+  @Prop({ default: "" })
+  zalo_group_url: string;
 }
 
 export type IndicatorDocument = HydratedDocument<Indicator>;

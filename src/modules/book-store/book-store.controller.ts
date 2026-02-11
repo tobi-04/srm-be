@@ -49,7 +49,8 @@ export class BookStoreController {
   @ApiBearerAuth()
   @ApiOperation({ summary: "Get books owned by current user" })
   async getMyBooks(@Request() req: any) {
-    return this.bookStoreService.getMyBooks(req.user.sub || req.user._id);
+    const userId = req.user.userId || req.user.sub || req.user._id;
+    return this.bookStoreService.getMyBooks(userId);
   }
 
   @Get(":slug")
@@ -88,7 +89,7 @@ export class BookStoreController {
     @Request() req: any,
   ) {
     return this.bookStoreService.getDownloadUrl(
-      req.user.sub || req.user._id,
+      req.user.userId,
       bookId,
       fileId,
     );

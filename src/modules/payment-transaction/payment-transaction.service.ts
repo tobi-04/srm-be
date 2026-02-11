@@ -4,18 +4,24 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import {
   PaymentTransaction,
   PaymentTransactionDocument,
   PaymentTransactionStatus,
 } from "./entities/payment-transaction.entity";
+import { CourseEnrollment } from "../course-enrollment/entities/course-enrollment.entity";
+import { UserFormSubmission } from "../landing-page/entities/user-form-submission.entity";
 
 @Injectable()
 export class PaymentTransactionService {
   constructor(
     @InjectModel(PaymentTransaction.name)
-    private paymentTransactionModel: Model<PaymentTransactionDocument>
+    private paymentTransactionModel: Model<PaymentTransactionDocument>,
+    @InjectModel(CourseEnrollment.name)
+    private courseEnrollmentModel: Model<CourseEnrollment>,
+    @InjectModel(UserFormSubmission.name)
+    private userSubmissionModel: Model<UserFormSubmission>,
   ) {}
 
   /**
@@ -27,6 +33,22 @@ export class PaymentTransactionService {
     amount: number,
     metadata: Record<string, any> = {},
   ): Promise<PaymentTransaction> {
+    // 1. Check if user with this submission email is already enrolled
+    const submission = await this.userSubmissionModel.findById(
+      userFormSubmissionId,
+    );
+    if (submission) {
+      const enrollment = await this.courseEnrollmentModel.findOne({
+        user_email: submission.email.toLowerCase().trim(),
+        course_id: new Types.ObjectId(courseId),
+        is_deleted: false,
+      });
+
+      if (enrollment) {
+        throw new BadRequestException("Bạn đã sở hữu khóa học này rồi.");
+      }
+    }
+
     // Check for existing pending transaction for this user and course
     const existingTransaction = await this.paymentTransactionModel.findOne({
       course_id: courseId,

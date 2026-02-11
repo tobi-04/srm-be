@@ -147,6 +147,7 @@ export class IndicatorStoreService {
         owner_name: "",
         contact_email: "",
         contact_telegram: "",
+        zalo_group_url: "",
         description_detail: "",
         has_subscription: false,
       };

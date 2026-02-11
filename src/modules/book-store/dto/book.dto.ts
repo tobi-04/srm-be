@@ -67,6 +67,14 @@ export class CreateBookDto {
   @IsOptional()
   @IsString()
   cover_image?: string;
+
+  @ApiPropertyOptional({
+    description: "Zalo group link for readers",
+    example: "https://zalo.me/g/xxxxxx",
+  })
+  @IsOptional()
+  @IsString()
+  zalo_group_url?: string;
 }
 
 export class UpdateBookDto {
@@ -121,6 +129,14 @@ export class UpdateBookDto {
   @IsOptional()
   @IsString()
   cover_image?: string;
+
+  @ApiPropertyOptional({
+    description: "Zalo group link for readers",
+    example: "https://zalo.me/g/xxxxxx",
+  })
+  @IsOptional()
+  @IsString()
+  zalo_group_url?: string;
 }
 
 export class SearchBookDto {

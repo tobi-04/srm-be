@@ -42,6 +42,10 @@ import {
   EmailLogDocument,
   EmailLogStatus,
 } from "../email-automation/entities/email-log.entity";
+import {
+  UserFormSubmission,
+  UserFormSubmissionDocument,
+} from "../landing-page/entities/user-form-submission.entity";
 import dayjs from "dayjs";
 import { Types } from "mongoose";
 
@@ -68,6 +72,8 @@ export class AnalyticsService {
     private indicatorPaymentModel: Model<IndicatorPaymentDocument>,
     @InjectModel(EmailLog.name)
     private emailLogModel: Model<EmailLogDocument>,
+    @InjectModel(UserFormSubmission.name)
+    private userFormSubmissionModel: Model<UserFormSubmissionDocument>,
   ) {}
 
   async getDashboardSummary() {
@@ -172,11 +178,20 @@ export class AnalyticsService {
       is_deleted: false,
     });
 
-    // 4. Total Customers (Toàn bộ học viên trong hệ thống)
+    // 4. Total Customers (Học viên đã có tài khoản)
     const totalCustomers = await this.userModel.countDocuments({
       role: UserRole.USER,
       is_deleted: false,
     });
+
+    // 5. Total Emails in system (Unique emails from submissions + users)
+    const [uniqueEmailsInSubmissions, uniqueEmailsInUsers] = await Promise.all([
+      this.userFormSubmissionModel.distinct("email", { is_deleted: false }),
+      this.userModel.distinct("email", { role: UserRole.USER, is_deleted: false }),
+    ]);
+
+    const allUniqueEmails = new Set([...uniqueEmailsInSubmissions, ...uniqueEmailsInUsers]);
+    const totalAllEmails = allUniqueEmails.size;
 
     return {
       revenue: {
@@ -191,6 +206,7 @@ export class AnalyticsService {
       },
       emails: {
         total: newEmailsToday,
+        allEmails: totalAllEmails,
         label: "gửi hôm nay",
       },
       customers: {

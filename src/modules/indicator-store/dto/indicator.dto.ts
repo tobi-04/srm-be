@@ -82,6 +82,14 @@ export class CreateIndicatorDto {
   @IsOptional()
   @IsString()
   description_detail?: string;
+
+  @ApiPropertyOptional({
+    description: "Zalo group link for subscribers",
+    example: "https://zalo.me/g/xxxxxx",
+  })
+  @IsOptional()
+  @IsString()
+  zalo_group_url?: string;
 }
 
 export class UpdateIndicatorDto {
@@ -152,6 +160,14 @@ export class UpdateIndicatorDto {
   @IsOptional()
   @IsString()
   description_detail?: string;
+
+  @ApiPropertyOptional({
+    description: "Zalo group link for subscribers",
+    example: "https://zalo.me/g/xxxxxx",
+  })
+  @IsOptional()
+  @IsString()
+  zalo_group_url?: string;
 }
 
 export class SearchIndicatorDto {

@@ -121,7 +121,7 @@ export class PaymentController {
           dto.course_id.toString(),
         );
         if (isEnrolled) {
-          throw new BadRequestException("ALREADY_ENROLLED");
+          throw new BadRequestException("Bạn đã mua khóa học này rồi");
         }
       }
     }
@@ -202,7 +202,7 @@ export class PaymentController {
           );
           console.log("✅ GET /transaction/:id - isEnrolled:", isEnrolled);
           if (isEnrolled) {
-            throw new BadRequestException("ALREADY_ENROLLED");
+            throw new BadRequestException("Bạn đã mua khóa học này rồi");
           }
         }
       }

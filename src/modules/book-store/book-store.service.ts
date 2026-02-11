@@ -84,17 +84,38 @@ export class BookStoreService {
       filter.status = status;
     }
 
-    return this.bookRepository.paginate(filter, {
+    const result = await this.bookRepository.paginate(filter, {
       page,
       limit,
       sort: sort || "created_at",
       order,
       search,
       searchFields: ["title", "description"],
-      useCache: true,
+      useCache: !isAdmin, // Only use cache for public users
       cacheTTL: 600,
-      includeDeleted: false, // Ensure even admins don't see soft-deleted books in regular list
+      includeDeleted: false,
     });
+
+    // If admin, attach files to each book
+    if (isAdmin && result.data.length > 0) {
+      const bookIds = result.data.map((b) => (b as any)._id);
+      const allFiles = await this.bookFileModel.find({
+        book_id: { $in: bookIds },
+        is_deleted: false,
+      });
+
+      result.data = result.data.map((book) => {
+        const bookObj = (book as any).toObject ? (book as any).toObject() : book;
+        return {
+          ...bookObj,
+          files: allFiles.filter(
+            (f) => f.book_id.toString() === (book as any)._id.toString(),
+          ),
+        };
+      });
+    }
+
+    return result;
   }
 
   async findOne(id: string, isAdmin: boolean = false) {
@@ -179,12 +200,10 @@ export class BookStoreService {
           ? BookFileType.EPUB
           : BookFileType.PDF;
 
-        await this.bookFileModel.create({
-          book_id: book._id,
-          file_path: file.path,
-          file_type: fileType,
-          file_size: file.size,
-        });
+        const uploaded = await this.uploadBookFile(book._id.toString(), file, fileType);
+        if (!uploaded) {
+          throw new BadRequestException("Failed to upload file");
+        }
       }
     }
 
@@ -196,16 +215,57 @@ export class BookStoreService {
   }
 
   async remove(id: string) {
-    const book = await this.bookRepository.deleteById(id);
+    const book = await this.bookRepository.findById(id);
     if (!book) {
       throw new NotFoundException("Book not found");
     }
 
-    // Xóa cache sau khi xóa sách
+    // 1. Delete associated files from R2 and DB
+    const files = await this.bookFileModel.find({
+      book_id: new Types.ObjectId(id),
+      is_deleted: false,
+    });
+
+    for (const file of files) {
+      try {
+        await this.r2Service.deleteFile(file.file_path);
+        file.is_deleted = true;
+        file.updated_at = new Date();
+        await file.save();
+      } catch (err) {
+        console.error(`Failed to delete file ${file.file_path} from R2:`, err);
+      }
+    }
+
+    // 2. Delete cover image from R2 if it's an internal link
+    if (book.cover_image) {
+      try {
+        // Check if the URL belongs to our R2 bucket
+        const isInternalImage =
+          book.cover_image.includes("r2.cloudflarestorage.com") ||
+          book.cover_image.includes("r2.dev") ||
+          (process.env.R2_PUBLIC_URL &&
+            book.cover_image.includes(process.env.R2_PUBLIC_URL));
+
+        if (isInternalImage) {
+          const key = this.r2Service.extractKeyFromUrl(book.cover_image);
+          if (key) {
+            await this.r2Service.deleteFile(key);
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to delete cover image ${book.cover_image} from R2:`, err);
+      }
+    }
+
+    // 3. Soft delete the book
+    await this.bookRepository.deleteById(id);
+
+    // Invalidate cache
     await this.bookRepository.invalidateCache();
     await this.bookRepository.invalidateCacheById(id);
 
-    return { message: "Book deleted successfully" };
+    return { message: "Book and associated assets deleted successfully" };
   }
 
   /**
@@ -219,6 +279,28 @@ export class BookStoreService {
     const book = await this.bookRepository.findById(bookId);
     if (!book) {
       throw new NotFoundException("Book not found");
+    }
+
+    // Check if a file of this type already exists for this book
+    const existingFile = await this.bookFileModel.findOne({
+      book_id: new Types.ObjectId(bookId),
+      file_type: fileType,
+      is_deleted: false,
+    });
+
+    // If exists, delete from R2 and mark as deleted in DB
+    if (existingFile) {
+      try {
+        await this.r2Service.deleteFile(existingFile.file_path);
+        // We'll actually reuse the record or create a new one.
+        // Let's mark old as deleted to keep history, or just update it.
+        // User said "xoá file cũ", so let's mark as deleted.
+        existingFile.is_deleted = true;
+        existingFile.updated_at = new Date();
+        await existingFile.save();
+      } catch (err) {
+        console.error(`Failed to delete old file ${existingFile.file_path} from R2:`, err);
+      }
     }
 
     // Upload to R2 in 'books' folder
@@ -266,24 +348,53 @@ export class BookStoreService {
    * Get books owned by user
    */
   async getMyBooks(userId: string) {
+    console.log('📚 getMyBooks called with userId:', userId);
+    console.log('📚 userId type:', typeof userId);
+
+    // Convert to ObjectId
+    const userObjectId = new Types.ObjectId(userId);
+    console.log('📚 userObjectId:', userObjectId);
+    console.log('📚 userObjectId string:', userObjectId.toString());
+
+    const query = {
+      user_id: userObjectId,
+      is_deleted: false,
+    };
+    console.log('📚 Query:', JSON.stringify(query, null, 2));
+
     const accesses = await this.userBookAccessModel
-      .find({
-        user_id: new Types.ObjectId(userId),
-        is_deleted: false,
-      })
+      .find(query)
       .sort({ granted_at: -1 });
+
+    console.log('✅ User book accesses found:', accesses.length);
+    console.log('✅ Raw accesses:', JSON.stringify(accesses, null, 2));
 
     const result = [];
     for (const access of accesses) {
+      console.log('🔍 Processing access:', {
+        _id: access._id,
+        user_id: access.user_id,
+        book_id: access.book_id,
+        granted_at: access.granted_at,
+      });
+
       const book = await this.bookRepository.findById(
         access.book_id.toString(),
       );
-      if (!book) continue;
+
+      if (!book) {
+        console.log('⚠️  Book not found for book_id:', access.book_id);
+        continue;
+      }
+
+      console.log('✅ Book found:', book.title);
 
       const files = await this.bookFileModel.find({
         book_id: access.book_id,
         is_deleted: false,
       });
+
+      console.log('📄 Files found:', files.length);
 
       result.push({
         _id: access._id,
@@ -292,6 +403,8 @@ export class BookStoreService {
         files,
       });
     }
+
+    console.log('📦 Returning', result.length, 'books');
     return result;
   }
 
