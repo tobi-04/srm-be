@@ -25,6 +25,7 @@ export interface CoursePurchasedEvent {
   isNewUser: boolean;
   email: string;
   name: string;
+  submissionId?: string;
 }
 
 export interface UserRegisteredNoPurchaseEvent {
@@ -41,7 +42,7 @@ export interface BookPurchasedEvent {
   email: string;
   name: string;
   amount: number;
-  books: { id: string; title: string }[];
+  books: { id: string; title: string; files?: { fileId: string; fileName: string; filePath: string; fileType: string }[] }[];
   purchasedAt: Date;
 }
 
@@ -107,7 +108,8 @@ export class EmailAutomationEventListener {
       },
       temp_password: payload.tempPassword,
       is_new_user: payload.isNewUser,
-      submission_id: (payload as any).submissionId,
+      // Keep submissionId at top level so processEvent can use it as the per-purchase unique key
+      submissionId: payload.submissionId,
     });
   }
 
@@ -144,6 +146,10 @@ export class EmailAutomationEventListener {
     this.logger.log(
       `Book purchased event received: user ${payload.userId}, order ${payload.orderId}`,
     );
+    const frontendUrl =
+      this.configService.get<string>("FRONTEND_URL") || "http://localhost:5173";
+    const myBooksUrl = `${frontendUrl}/student/my-books`;
+
     await this.processEvent(EventType.BOOK_PURCHASED, {
       ...payload,
       user: {
@@ -154,7 +160,10 @@ export class EmailAutomationEventListener {
       book: {
         title: payload.books[0]?.title,
         id: payload.books[0]?.id,
+        my_books_url: myBooksUrl,
+        files: payload.books[0]?.files || [],
       },
+      books: payload.books,
       order: {
         amount: payload.amount,
         id: payload.orderId,
@@ -243,11 +252,20 @@ export class EmailAutomationEventListener {
         );
 
         for (const step of steps) {
+          // Derive a unique key per transaction so duplicate-check is per-purchase,
+          // not per-user lifetime.  Broadcast GROUP jobs pass their own broadcastKey (date).
+          const transactionKey =
+            eventData.orderId ||          // BOOK_PURCHASED / COURSE_PURCHASED
+            eventData.submissionId ||     // legacy course flow
+            eventData.subscriptionId ||   // INDICATOR_PURCHASED
+            undefined;                    // fallback → processor will use "once" (GROUP broadcasts)
+
           const jobData: EmailJobData = {
             userId: eventData.userId,
             automationId: automation._id.toString(),
             stepId: step._id.toString(),
             eventData,
+            ...(transactionKey ? { broadcastKey: transactionKey } : {}),
           };
 
           // Calculate delay based on scheduled_at, delay_days or delay_minutes

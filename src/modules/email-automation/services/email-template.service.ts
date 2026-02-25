@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import * as Handlebars from "handlebars";
 import * as fs from "fs";
 import * as path from "path";
+import { ConfigService } from "@nestjs/config";
 import { EventType } from "../entities/email-automation.entity";
 
 export interface TemplateVariables {
@@ -30,6 +31,8 @@ export class EmailTemplateService {
     "..",
     "templates"
   );
+
+  constructor(private readonly configService: ConfigService) {}
 
   /**
    * Render Handlebars template with variables
@@ -98,6 +101,7 @@ export class EmailTemplateService {
       [EventType.BOOK_PURCHASED]: [
         ...commonVariables,
         "{{book.title}}",
+        "{{book.my_books_url}}",
         "{{order.amount}}",
         "{{order.id}}",
       ],
@@ -141,6 +145,9 @@ export class EmailTemplateService {
    * Get template preview with sample data
    */
   getTemplatePreview(template: string, eventType: EventType): string {
+    const frontendUrl =
+      this.configService.get<string>("FRONTEND_URL") || "http://localhost:5173";
+
     const sampleData: Record<string, TemplateVariables> = {
       [EventType.USER_REGISTERED]: {
         user: {
@@ -156,7 +163,7 @@ export class EmailTemplateService {
         course: {
           title: "Advanced Web Development",
           id: "696ddcaa645bd1147bad6647",
-          learning_url: "http://localhost:5173/learn/696ddcaa645bd1147bad6647",
+          learning_url: `${frontendUrl}/learn/696ddcaa645bd1147bad6647`,
         },
         order: {
           amount: 299000,
@@ -166,7 +173,7 @@ export class EmailTemplateService {
       },
       [EventType.BOOK_PURCHASED]: {
         user: { name: "John Doe", email: "john@example.com" },
-        book: { title: "Ebook Trading 101" },
+        book: { title: "Ebook Trading 101", my_books_url: `${frontendUrl}/student/my-books` },
         order: { amount: 150000, id: "ORDER123" },
       },
       [EventType.INDICATOR_PURCHASED]: {

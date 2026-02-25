@@ -8,6 +8,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { BookOrder, BookOrderStatus } from "./entities/book-order.entity";
 import { BookOrderItem } from "./entities/book-order-item.entity";
+import { BookFile } from "./entities/book-file.entity";
 import { Coupon, CouponDocument, CouponType } from "./entities/coupon.entity";
 import { CreateBookOrderDto } from "./dto/book-order.dto";
 import { BookStoreService } from "./book-store.service";
@@ -25,6 +26,8 @@ export class BookOrderService {
     private readonly bookOrderModel: Model<BookOrder>,
     @InjectModel(BookOrderItem.name)
     private readonly bookOrderItemModel: Model<BookOrderItem>,
+    @InjectModel(BookFile.name)
+    private readonly bookFileModel: Model<BookFile>,
     @InjectModel(Coupon.name)
     private readonly couponModel: Model<CouponDocument>,
     private readonly bookStoreService: BookStoreService,
@@ -330,13 +333,38 @@ export class BookOrderService {
     }
 
     const user = await this.userService.findOne(order.user_id.toString());
+
+    // Query book files for all purchased books (for email attachment)
+    const booksWithFiles = await Promise.all(
+      items.map(async (item) => {
+        const files = await this.bookFileModel.find({
+          book_id: item.book_id,
+          is_deleted: false,
+        });
+        return {
+          id: item.book_id,
+          title: item.book_title,
+          files: files.map((f) => ({
+            fileId: (f as any)._id.toString(),
+            fileName: (() => {
+              const parts = f.file_path.split('/');
+              const raw = parts[parts.length - 1];
+              return raw.replace(/^\d+-/, '');
+            })(),
+            filePath: f.file_path,
+            fileType: f.file_type,
+          })),
+        };
+      }),
+    );
+
     this.eventEmitter.emit("book.purchased", {
       userId: user._id.toString(),
       orderId: order._id.toString(),
       email: user.email,
       name: user.name,
       amount: order.total_amount,
-      books: items.map((i) => ({ id: i.book_id, title: i.book_title })),
+      books: booksWithFiles,
       purchasedAt: order.paid_at,
     });
 

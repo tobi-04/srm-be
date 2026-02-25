@@ -45,6 +45,7 @@ import { EmailSchedulerService } from "./services/email-scheduler.service";
 import { EmailAutomationController } from "./email-automation.controller";
 import { EmailAutomationProcessor } from "./processors/email-automation.processor";
 import { EmailAutomationEventListener } from "./listeners/email-automation-event.listener";
+import { R2Module } from "../../common/storage/r2.module";
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { EmailAutomationEventListener } from "./listeners/email-automation-event
     BullModule.registerQueue({
       name: "email-automation",
     }),
+    R2Module,
   ],
   controllers: [EmailAutomationController],
   providers: [

@@ -13,13 +13,14 @@ import {
   EmailAutomationStepDocument,
 } from "../entities/email-automation-step.entity";
 import { User, UserDocument } from "../../user/entities/user.entity";
-import { EmailProviderService } from "../services/email-provider.service";
+import { EmailProviderService, EmailAttachment } from "../services/email-provider.service";
 import {
   EmailTemplateService,
   TemplateVariables,
 } from "../services/email-template.service";
 import { EmailAutomationService } from "../services/email-automation.service";
 import { TriggerType } from "../entities/email-automation.entity";
+import { R2Service } from "../../../common/storage/r2.service";
 
 export interface EmailJobData {
   userId: string;
@@ -47,6 +48,7 @@ export class EmailAutomationProcessor extends WorkerHost {
     private emailProvider: EmailProviderService,
     private templateService: EmailTemplateService,
     private automationService: EmailAutomationService,
+    private r2Service: R2Service,
   ) {
     super();
   }
@@ -150,11 +152,35 @@ export class EmailAutomationProcessor extends WorkerHost {
         emailLog = await this.emailLogModel.create(logData);
       }
 
+      // Build attachments for book purchase emails
+      const attachments: EmailAttachment[] = [];
+      if (eventData?.book?.files && Array.isArray(eventData.book.files) && eventData.book.files.length > 0) {
+        for (const bookFile of eventData.book.files) {
+          try {
+            const fileBuffer = await this.r2Service.downloadFile(bookFile.filePath);
+            const ext = bookFile.fileType?.toLowerCase() === 'epub' ? 'epub' : 'pdf';
+            const mimeType = ext === 'epub' ? 'application/epub+zip' : 'application/pdf';
+            attachments.push({
+              filename: bookFile.fileName || `ebook.${ext}`,
+              content: fileBuffer,
+              contentType: mimeType,
+            });
+            this.logger.log(`Attached book file: ${bookFile.fileName} (${fileBuffer.length} bytes)`);
+          } catch (attachErr) {
+            // Log but do not fail the email — file attachment is best-effort
+            this.logger.error(
+              `Failed to attach book file ${bookFile.filePath}: ${attachErr.message}`,
+            );
+          }
+        }
+      }
+
       // Send email
       await this.emailProvider.sendEmail({
         to: recipientEmail,
         subject,
         html: body,
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
 
       // Update log as sent

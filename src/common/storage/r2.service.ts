@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Readable } from 'stream';
 
 @Injectable()
 export class R2Service {
@@ -125,5 +126,25 @@ export class R2Service {
   extractKeyFromUrl(url: string): string {
     const urlObj = new URL(url);
     return urlObj.pathname.substring(1); // Remove leading slash
+  }
+
+  /**
+   * Download file from R2 and return as Buffer
+   */
+  async downloadFile(key: string): Promise<Buffer> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    const response = await this.s3Client.send(command);
+    const stream = response.Body as Readable;
+
+    return new Promise<Buffer>((resolve, reject) => {
+      const chunks: Uint8Array[] = [];
+      stream.on('data', (chunk: Uint8Array) => chunks.push(chunk));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', reject);
+    });
   }
 }
